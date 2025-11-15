@@ -25,10 +25,154 @@ Xây dựng một pipeline serverless trên AWS: Người dùng tải lên qua 
 
 ### **A. High-level**
 
-![A) High level](/images/Architect.jpeg)
+```mermaid
+  flowchart TD
+  %% ===== Users =====
+  subgraph Users["Users"]
+    U["👤 Browser"]
+  end
+
+  %% ===== CI/CD =====
+  subgraph CI_CD["CI/CD"]
+    DEV["DEV"]
+    GIT["GitHub Repo"]
+    CP["AWS CodePipeline"]
+    CB["AWS CodeBuild"]
+    ART["S3 (Artifacts)"]
+    CFN["AWS CloudFormation"]
+  end
+
+  %% ===== AWS (Managed Services) =====
+  subgraph AWS_Services["AWS (Managed Services)"]
+    R53["Amazon Route 53 (DNS)"]
+    AMP["AWS Amplify (Hosting + CI/CD FE)"]
+    COG["Amazon Cognito (User Pools)"]
+    APIGW["Amazon API Gateway (HTTP API)"]
+    LBD["AWS Lambda (Business Logic)"]
+    DDB["Amazon DynamoDB (Metadata)"]
+    S3["Amazon S3 (Books/Images)"]
+    CF["Amazon CloudFront (CDN)"]
+    CW["Amazon CloudWatch (Logs & Metrics)"]
+  end
+
+  %% Users ↔ DNS
+  U -- Gõ domain --> R53
+
+  %% DNS records
+  R53 --> AMP
+  R53 --> CF
+
+  %% CI/CD flow
+  DEV -- push --> GIT
+  GIT -- connect --> AMP
+  GIT -- trigger --> CP
+  CP --> CB
+  CB --> ART
+  ART --> CFN
+  CFN --> LBD
+  CFN --> APIGW
+  CFN --> DDB
+  CFN --> S3
+  CFN --> COG
+  CFN --> CF
+  CFN --> CW
+
+  %% App flows
+  AMP -- Đăng nhập/Refresh --> COG
+  AMP -- API (Bearer JWT) --> APIGW
+  APIGW --> LBD
+  LBD --> DDB
+  LBD --> S3
+  LBD --> CW
+
+  %% Read content via Signed URL
+  LBD -- trả Signed URL --> U
+  U -- dùng Signed URL --> CF
+  CF -. OAC .-> S3
+
+  %% Styles
+  style U fill:#DCE8F7,stroke:#1C52A5,stroke-width:2px
+  style R53 fill:#F5F5F5,stroke:#333,stroke-width:2px
+  style AMP fill:#FFECB3,stroke:#C77800,stroke-width:2px
+  style COG fill:#D9F2D9,stroke:#2E7D32,stroke-width:2px
+  style APIGW fill:#FFE5E5,stroke:#E53935,stroke-width:2px
+  style LBD fill:#D0F0FD,stroke:#0277BD,stroke-width:2px
+  style DDB fill:#FFE0B2,stroke:#EF6C00,stroke-width:2px
+  style S3 fill:#E1F5FE,stroke:#03A9F4,stroke-width:2px
+  style CF fill:#FFF8E1,stroke:#F9A825,stroke-width:2px
+  style CW fill:#ECEFF1,stroke:#546E7A,stroke-width:2px
+  style CP fill:#FFF3E0,stroke:#FB8C00,stroke-width:2px
+  style CB fill:#FFF3E0,stroke:#FB8C00,stroke-width:2px
+  style ART fill:#E8F1FB,stroke:#1E5AA7,stroke-width:2px
+  style CFN fill:#E0F2F1,stroke:#00796B,stroke-width:2px
+
+```
+
 
 ### **B. Luồng xử lý yêu cầu**
-![B) Request flow](/images/Request_flow.jpeg)
+
+```mermaid
+    graph TD
+      subgraph User & Admin
+        A[👤 Browser]
+        H["👨‍💻 Admin (role=ADMIN)"]
+      end
+
+      subgraph Auth
+        B[Amazon Cognito]
+      end
+
+      subgraph API & Logic
+        C[API Gateway - HTTP]
+        L_Read[λ getReadUrl]
+        L_Upload[λ createUploadUrl]
+        L_Approve[λ approveBook]
+      end
+
+      subgraph Database & Storage
+        E[Amazon DynamoDB]
+        G[Amazon CloudFront - OAC]
+        F[Amazon S3]
+      end
+
+      %% --- Luồng Đăng nhập ---
+      A -- 1. Đăng nhập --> B
+
+      %% --- Luồng Đọc Sách (User) ---
+      A -- 2. Gọi API /books/{id}/read (JWT) --> C
+      C -- 3. Route /read --> L_Read
+      L_Read -- 4. Kiểm tra DDB --> E
+      L_Read -- 5. Tạo Signed URL --> A
+      A -- 6. Dùng Signed URL --> G
+
+      %% --- Luồng Tải lên (User/Admin) ---
+      A -- 2. Gọi API /upload (JWT) --> C
+      C -- 3. Route /upload --> L_Upload
+      L_Upload -- 4. Ghi DDB (pending) --> E
+      L_Upload -- 5. Tạo Presigned PUT --> A
+      A -- 6. Upload thẳng --> F(uploads/)
+
+      %% --- Luồng Duyệt (Admin) ---
+      H -- 2. Gọi API /approve (JWT) --> C
+      C -- 3. Route /approve --> L_Approve
+      L_Approve -- 4. Copy S3, Cập nhật DDB --> F
+      L_Approve --> E
+
+      %% --- Kết nối cuối ---
+      G --> F(public/books/)
+
+      %% Styling
+      style A fill:#DCE8F7,stroke:#1C52A5
+      style H fill:#FFF8E1,stroke:#F9A825
+      style B fill:#D9F2D9,stroke:#2E7D32
+      style C fill:#FFE5E5,stroke:#E53935
+      style L_Read fill:#D0F0FD,stroke:#0277BD
+      style L_Upload fill:#D0F0FD,stroke:#0277BD
+      style L_Approve fill:#D0F0FD,stroke:#0277BD
+      style E fill:#FFE0B2,stroke:#EF6C00
+      style G fill:#FFF8E1,stroke:#F9A825
+      style F fill:#E1F5FE,stroke:#03A9F499
+```
 
 ### **Dịch vụ AWS Sử Dụng**
 
@@ -59,9 +203,43 @@ Xây dựng một pipeline serverless trên AWS: Người dùng tải lên qua 
 - **Tìm kiếm đơn giản:**
     - Thiết kế **GSI** cho `title` và `author` (ví dụ: `GSI1: PK=TITLE#{normalizedTitle}, SK=BOOK#{bookId}`; `GSI2: PK=AUTHOR#{normalizedAuthor}, SK=BOOK#{bookId}`).
     - Thêm endpoint `GET /search?title=...&author=...` để query theo GSI thay vì `Scan`.
+    - 
+```mermaid
+    flowchart LR
+        Client[Client] --> API[API Gateway: GET /search]
+        API --> LBD[Lambda Search Function]
 
-![Search Architecture](/images/SearchArchitecture.jpeg)
+        subgraph LambdaLogic["Bên trong Lambda Search Function"]
+            direction TB
+            LBD --> Check{Kiểm tra query params}
 
+            Check -- "Chỉ có 'title'" --> QueryGSI1["Query GSI1 (Title)"]
+            QueryGSI1 --> FinalList[Danh sách bookIds]
+
+            Check -- "Chỉ có 'author'" --> QueryGSI2["Query GSI2 (Author)"]
+            QueryGSI2 --> FinalList
+
+            Check -- "Có cả 'title' VÀ 'author'" --> Fork{"Song song"}
+            Fork --> QueryGSI1
+            Fork --> QueryGSI2
+            
+            QueryGSI1 --> Results1["bookIds (từ title)"]
+            QueryGSI2 --> Results2["bookIds (từ author)"]
+
+            Results1 --> Intersect["Logic: Tìm phần chung (Intersection)"]
+            Results2 --> Intersect
+            Intersect --> FinalList
+            
+            FinalList -- "Nếu danh sách > 0" --> BatchGet[BatchGetItem trên Bảng Chính]
+            BatchGet --> Format[Format Results]
+            Format --> Return[Trả về kết quả]
+            
+            FinalList -- "Nếu danh sách = 0" --> Empty[Trả về mảng rỗng]
+        end
+        
+        LBD -- Response --> API
+        API --> Clien
+```
 ### **Phân quyền Admin**
 
 - Sử dụng **Cognito User Groups** với một nhóm `Admins` trong User Pool.
