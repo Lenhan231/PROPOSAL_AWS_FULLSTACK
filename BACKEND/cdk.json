@@ -1,0 +1,7 @@
+{
+    "app": "python3 bin/app.py",
+    "watch": {
+        "include": ["**"],
+        "exclude"
+    }
+}
