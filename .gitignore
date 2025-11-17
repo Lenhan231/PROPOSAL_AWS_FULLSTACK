@@ -1,10 +1,10 @@
 .docs
 .kiro
+.venv
 
 learning_note
 logs
 
 
 BACKEND/node_modules
-BACKEND/package-lock.json
-BACKEND/package.json
+BACKEND/.venv

@@ -1,0 +1,2 @@
+def CdnStack():
+    pass
