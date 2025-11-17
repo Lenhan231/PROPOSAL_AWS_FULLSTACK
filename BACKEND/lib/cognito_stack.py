@@ -1,11 +1,20 @@
 """
-Cognito Stack - User authentication and authorization
+Phase 1 - Task #2: CognitoStack
 
-This stack creates:
-- Cognito User Pool for user management
-- User Pool Client for frontend authentication  
-- Admin user group
+Mục đích: Xác thực người dùng + phân quyền Admin
+
+Components:
+- User Pool: Email login + email verification
 - Password policy: min 8 chars, uppercase, lowercase, number, special char
+- User Pool Client: Không secret (cho frontend)
+- Admin Group: "Admins" group cho admin users
+
+Outputs:
+- UserPoolId: ID của Cognito User Pool
+- UserPoolArn: ARN của User Pool
+- UserPoolClientId: Client ID cho frontend authentication
+
+Dependencies: Không phụ thuộc stack khác → Làm đầu tiên
 """
 
 from aws_cdk import (
@@ -39,13 +48,30 @@ class CognitoStack(Stack):
                 require_symbols=True,
             ),
         )
-        # Placeholder property (will be implemented )
+        # Placeholder property (will be implemented in Task 2)
         self.user_pool = None
         
-        # Placeholder outputs
+        # Outputs
         CfnOutput(
             self,
-            "UserPoolIdPlaceholder",
-            value="TODO",
-            description="Cognito User Pool ID (to be implemented)"
+            "UserPoolId",
+            value="TODO-TASK-2",
+            description="Cognito User Pool ID",
+            export_name=f"{construct_id}-UserPool-Id"
+        )
+        
+        CfnOutput(
+            self,
+            "UserPoolArn",
+            value="TODO-TASK-2",
+            description="Cognito User Pool ARN",
+            export_name=f"{construct_id}-UserPool-Arn"
+        )
+        
+        CfnOutput(
+            self,
+            "UserPoolClientId",
+            value="TODO-TASK-2",
+            description="Cognito User Pool Client ID for frontend",
+            export_name=f"{construct_id}-UserPoolClient-Id"
         )
