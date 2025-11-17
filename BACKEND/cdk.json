@@ -1,7 +1,14 @@
 {
     "app": "python3 bin/app.py",
     "watch": {
-        "include": ["**"],
-        "exclude"
+    "include": ["**"],
+    "exclude": [
+        "FRONTEND/**",
+        "README.md",
+        "cdk*.json",
+        "requirements*.txt",
+        "**/__pycache__",
+        "**/*.pyc"
+    ]
     }
 }
