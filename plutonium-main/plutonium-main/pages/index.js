@@ -3,96 +3,109 @@ import Link from "next/link";
 import { NextSeo } from "next-seo";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
-import Sponsors from "../components/Sponsors";
-import Features from "../components/Features";
-import Pricing from "../components/Pricing";
 
 export default function Home() {
   return (
     <div className="bg-white dark:bg-black">
       <NextSeo
-        title="Plutonium"
-        description="Plutonium – where darkness meets the web."
-        canonical="https://plutonium.vercel.app/"
+        title="Thư Viện Online"
+        description="Nền tảng chia sẻ tài liệu PDF/ePub an toàn cho cộng đồng"
+        canonical="https://library.vercel.app/"
         openGraph={{
-          url: "https://plutonium.vercel.app/",
-          title: "Plutonium",
-          description: "Plutonium – where darkness meets the web.",
-          images: [
-            {
-              url: "blob:https://og-playground.vercel.app/8baff750-c782-4a04-b198-7ee3dd1e1974",
-            },
-          ],
-          site_name: "Plutonium",
-        }}
-        twitter={{
-          handle: "@saurishhh",
-          site: "https://plutonium.vercel.app/",
-          cardType: "summary_large_image",
+          url: "https://library.vercel.app/",
+          title: "Thư Viện Online",
+          description: "Nền tảng chia sẻ tài liệu PDF/ePub an toàn cho cộng đồng",
+          site_name: "Thư Viện Online",
         }}
       />
       <Head>
         <link rel="icon" href="/favicon.ico" />
       </Head>
       <Header />
-      <section className="relative">
-        <div className="px-4 pt-10 mx-auto max-w-7xl md:pt-16">
-          <div className="w-full pb-5 mx-auto text-center md:w-11/12">
-            <h1 className="mb-3 text-5xl font-bold tracking-tight text-gray-900 dark:text-gray-100 md:text-6xl">
-              Bringing darkness
-              <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r dark:bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 dark:from-pink-500 dark:via-purple-400 dark:to-indigo-500">
-                straight to the web.
-              </span>
+      
+      {/* Hero Section */}
+      <section className="relative bg-gradient-to-b from-blue-50 to-white dark:from-gray-900 dark:to-black">
+        <div className="px-4 pt-16 pb-20 mx-auto max-w-7xl md:pt-24 md:pb-32">
+          <div className="w-full mx-auto text-center md:w-11/12">
+            <h1 className="mb-6 text-5xl font-bold tracking-tight text-gray-900 dark:text-gray-100 md:text-6xl">
+              Thư Viện Online
             </h1>
-            <p className="max-w-xl pt-5 mx-auto text-lg text-gray-600 dark:text-gray-400 md:text-lg">
-              Plutonium is a Next.js template styled with TailwindCSS. It boasts
-              built-in dark-mode support, configured Next-SEO for the best SEO
-              optimizations, and clean, organized, easy-to-edit code.
+            <p className="max-w-2xl mx-auto mb-8 text-xl text-gray-600 dark:text-gray-400 md:text-2xl">
+              Nền tảng chia sẻ tài liệu PDF/ePub an toàn cho cộng đồng
             </p>
-            <div className="mt-6 text-center md:ml-6">
-              <a
-                className="inline-flex items-center px-5 py-3 text-sm font-medium text-gray-300 transition duration-300 bg-black rounded hover:bg-gray-800 dark:hover:bg-gray-200 dark:text-gray-700 dark:bg-white"
-                aria-label="learn more"
-                rel="noreferrer"
-                href="https://github.com/minor/plutonium/"
-              >
-                <span className="flex justify-center">GitHub Link</span>
-              </a>
-              <br className="sm:hidden" />
-              <Link href="404" className="inline-flex items-center px-5 py-3 mt-2 ml-0 text-sm font-medium text-gray-700 transition duration-300 border rounded shadow dark:hover:border-gray-500 hover:shadow-md md:ml-2 dark:text-gray-300" aria-label="learn more">
-                <span className="flex justify-center">See a Demo</span>
+            <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
+              <Link href="/books" className="inline-flex items-center px-8 py-3 text-base font-medium text-white transition duration-300 bg-blue-600 rounded-lg hover:bg-blue-700">
+                Khám phá sách
+              </Link>
+              <Link href="/upload" className="inline-flex items-center px-8 py-3 text-base font-medium text-blue-600 transition duration-300 border-2 border-blue-600 rounded-lg hover:bg-blue-50 dark:text-blue-400 dark:border-blue-400 dark:hover:bg-gray-800">
+                Tải lên tài liệu
               </Link>
             </div>
           </div>
-          <div className="relative w-full py-10 mx-auto text-center md:py-32 md:my-12 md:w-10/12">
-            <div className="relative z-10">
-              <a
-                target="_blank"
-                rel="noreferrer"
-                href="https://unsplash.com/photos/e9TrFZZ72DQ"
-              >
-                <img
-                  className="transition duration-700 shadow-xl rounded-xl ring-1 ring-black ring-opacity-5 hover:transform hover:scale-105"
-                  src="/images/placeholder.webp"
-                  alt="Placeholder Image"
-                />
-              </a>
-            </div>
-            <p className="z-10 my-8 text-sm font-medium text-gray-500">
-              Maybe we&apos;re bringing brightness too?
-            </p>
+        </div>
+      </section>
+
+      {/* Features Section */}
+      <section className="px-4 py-16 bg-white dark:bg-black md:py-24">
+        <div className="mx-auto max-w-7xl">
+          <h2 className="mb-12 text-3xl font-bold text-center text-gray-900 dark:text-white md:text-4xl">
+            Tính năng nổi bật
+          </h2>
+          <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-4">
+            <FeatureCard
+              title="Đọc trực tuyến"
+              description="Đọc PDF/ePub ngay trên trình duyệt, không cần tải về"
+              icon="📖"
+            />
+            <FeatureCard
+              title="Tải lên dễ dàng"
+              description="Upload tài liệu nhanh chóng với giao diện thân thiện"
+              icon="⬆️"
+            />
+            <FeatureCard
+              title="Tìm kiếm thông minh"
+              description="Tìm sách theo tên hoặc tác giả một cách nhanh chóng"
+              icon="🔍"
+            />
+            <FeatureCard
+              title="An toàn & Bảo mật"
+              description="Hệ thống kiểm duyệt nội dung và bảo vệ bản quyền"
+              icon="🛡️"
+            />
           </div>
         </div>
-        {/* <div
-          style={{ backgroundImage: "url(/images/blur.png)" }}
-          className="absolute inset-0 w-full h-full bg-bottom bg-no-repeat bg-cover -z-1"
-        /> */}
       </section>
-      <Sponsors />
-      <Features />
-      <Pricing />
+
+      {/* CTA Section */}
+      <section className="px-4 py-16 bg-white dark:bg-black md:py-24">
+        <div className="mx-auto max-w-7xl">
+          <div className="p-8 text-center text-white bg-blue-600 rounded-2xl md:p-12">
+            <h2 className="mb-4 text-3xl font-bold md:text-4xl">
+              Sẵn sàng bắt đầu?
+            </h2>
+            <p className="mb-8 text-xl text-blue-100">
+              Đăng ký ngay để truy cập hàng trăm tài liệu chất lượng
+            </p>
+            <Link href="/signup" className="inline-block px-8 py-3 font-medium text-blue-600 transition-colors bg-white rounded-lg hover:bg-gray-100">
+              Đăng ký miễn phí
+            </Link>
+          </div>
+        </div>
+      </section>
+
       <Footer />
+    </div>
+  );
+}
+
+function FeatureCard({ icon, title, description }) {
+  return (
+    <div className="p-6 transition-shadow bg-white rounded-xl dark:bg-gray-800 shadow-sm hover:shadow-md">
+      <div className="mb-4 text-4xl">{icon}</div>
+      <h3 className="mb-2 text-xl font-semibold text-gray-900 dark:text-white">
+        {title}
+      </h3>
+      <p className="text-gray-600 dark:text-gray-300">{description}</p>
     </div>
   );
 }

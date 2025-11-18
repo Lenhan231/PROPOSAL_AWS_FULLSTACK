@@ -1,0 +1,215 @@
+import { useState } from "react";
+import Head from "next/head";
+import Header from "../components/Header";
+import Footer from "../components/Footer";
+
+export default function UploadPage() {
+  const [formData, setFormData] = useState({
+    title: "",
+    author: "",
+    description: "",
+  });
+  const [file, setFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+
+  const handleFileChange = (e) => {
+    const selectedFile = e.target.files[0];
+    if (selectedFile) {
+      // Validate file size (50MB)
+      if (selectedFile.size > 50 * 1024 * 1024) {
+        alert("File quá lớn! Kích thước tối đa là 50MB");
+        return;
+      }
+      // Validate file type
+      const validTypes = [".pdf", ".epub"];
+      const fileExt = selectedFile.name.toLowerCase().slice(selectedFile.name.lastIndexOf("."));
+      if (!validTypes.includes(fileExt)) {
+        alert("Chỉ chấp nhận file PDF hoặc ePub!");
+        return;
+      }
+      setFile(selectedFile);
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!file) {
+      alert("Vui lòng chọn file!");
+      return;
+    }
+
+    if (!formData.title || !formData.author) {
+      alert("Vui lòng điền đầy đủ thông tin!");
+      return;
+    }
+
+    setUploading(true);
+    setUploadProgress(0);
+
+    try {
+      // TODO: Step 1 - Get presigned URL from API
+      // const response = await fetch('/api/books/upload-url', {
+      //   method: 'POST',
+      //   headers: { 'Content-Type': 'application/json' },
+      //   body: JSON.stringify({
+      //     fileName: file.name,
+      //     fileSize: file.size,
+      //     ...formData
+      //   })
+      // });
+      // const { uploadUrl, bookId } = await response.json();
+
+      // TODO: Step 2 - Upload file to S3 using presigned URL
+      // await fetch(uploadUrl, {
+      //   method: 'PUT',
+      //   body: file,
+      //   onUploadProgress: (progressEvent) => {
+      //     const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+      //     setUploadProgress(progress);
+      //   }
+      // });
+
+      // Simulate upload
+      for (let i = 0; i <= 100; i += 10) {
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        setUploadProgress(i);
+      }
+
+      alert("Upload thành công! Sách của bạn đang chờ được duyệt.");
+      
+      // Reset form
+      setFormData({ title: "", author: "", description: "" });
+      setFile(null);
+      setUploadProgress(0);
+    } catch (error) {
+      console.error("Upload error:", error);
+      alert("Upload thất bại! Vui lòng thử lại.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-white dark:bg-black">
+      <Head>
+        <title>Tải lên sách - Thư Viện Online</title>
+      </Head>
+      <Header />
+
+      <main className="px-4 py-12 mx-auto max-w-3xl">
+        <h1 className="mb-8 text-4xl font-bold text-center text-gray-900 dark:text-white">
+          Tải lên tài liệu
+        </h1>
+
+        <div className="p-8 bg-white border border-gray-200 rounded-xl dark:bg-gray-800 dark:border-gray-700">
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* File Upload */}
+            <div>
+              <label className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+                Chọn file (PDF hoặc ePub) *
+              </label>
+              <input
+                type="file"
+                accept=".pdf,.epub"
+                onChange={handleFileChange}
+                className="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 dark:text-gray-400 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400"
+              />
+              {file && (
+                <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                  Đã chọn: {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
+                </p>
+              )}
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Kích thước tối đa: 50MB
+              </p>
+            </div>
+
+            {/* Title */}
+            <div>
+              <label className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+                Tên sách *
+              </label>
+              <input
+                type="text"
+                value={formData.title}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                className="w-full px-4 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg dark:bg-gray-700 dark:text-white dark:border-gray-600 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Nhập tên sách..."
+                required
+              />
+            </div>
+
+            {/* Author */}
+            <div>
+              <label className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+                Tác giả *
+              </label>
+              <input
+                type="text"
+                value={formData.author}
+                onChange={(e) => setFormData({ ...formData, author: e.target.value })}
+                className="w-full px-4 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg dark:bg-gray-700 dark:text-white dark:border-gray-600 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Nhập tên tác giả..."
+                required
+              />
+            </div>
+
+            {/* Description */}
+            <div>
+              <label className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+                Mô tả (tùy chọn)
+              </label>
+              <textarea
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                rows={4}
+                className="w-full px-4 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg dark:bg-gray-700 dark:text-white dark:border-gray-600 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Nhập mô tả về sách..."
+              />
+            </div>
+
+            {/* Upload Progress */}
+            {uploading && (
+              <div>
+                <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
+                  <div
+                    className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
+                    style={{ width: `${uploadProgress}%` }}
+                  ></div>
+                </div>
+                <p className="mt-2 text-sm text-center text-gray-600 dark:text-gray-400">
+                  Đang tải lên... {uploadProgress}%
+                </p>
+              </div>
+            )}
+
+            {/* Submit Button */}
+            <button
+              type="submit"
+              disabled={uploading}
+              className="w-full px-6 py-3 font-medium text-white transition-colors bg-blue-600 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+              {uploading ? "Đang tải lên..." : "Tải lên"}
+            </button>
+          </form>
+        </div>
+
+        {/* Info Box */}
+        <div className="p-6 mt-8 bg-blue-50 border border-blue-200 rounded-xl dark:bg-gray-800 dark:border-blue-900">
+          <h3 className="mb-2 font-semibold text-blue-900 dark:text-blue-300">
+            Lưu ý:
+          </h3>
+          <ul className="space-y-1 text-sm text-blue-800 dark:text-blue-200 list-disc list-inside">
+            <li>Sách của bạn sẽ được kiểm duyệt trước khi xuất bản</li>
+            <li>Chỉ tải lên tài liệu bạn có quyền chia sẻ</li>
+            <li>Không tải lên nội dung vi phạm bản quyền</li>
+          </ul>
+        </div>
+      </main>
+
+      <Footer />
+    </div>
+  );
+}

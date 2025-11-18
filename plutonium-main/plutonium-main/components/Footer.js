@@ -6,20 +6,14 @@ export default function Footer() {
   return (
     <footer className="text-black dark:text-gray-300 body-font">
       <div className="container flex flex-col items-center px-10 pb-8 mx-auto border-t border-purple-600 dark:border-purple-300 sm:flex-row">
-        <Link href="/" className="flex items-center justify-center mt-3 text-xl font-medium title-font md:ml-3 md:justify-start">
-          PLUTONIUM
+        <Link href="/" className="flex items-center justify-center mt-3 space-x-2 text-xl font-bold title-font md:ml-3 md:justify-start">
+          <span>📚</span>
+          <span>Thư Viện Online</span>
         </Link>
         <div className="invisible h-5 mt-3 ml-4 border-l border-black md:visible dark:border-gray-300"></div>
-        <a
-          className="flex items-center justify-center mt-3 font-medium title-font md:justify-start"
-          href={
-            router.pathname === "/"
-              ? `https://github.com/minor/plutonium/edit/main/pages/index.js`
-              : `https://github.com/minor/plutonium/edit/main/pages${router.pathname}.js`
-          }
-        >
-          <span className="text-sm md:ml-5">Edit on GitHub</span>
-        </a>
+        <p className="flex items-center justify-center mt-3 text-sm text-gray-500 dark:text-gray-400 md:ml-5 md:justify-start">
+          © 2025 Thư Viện Online. All rights reserved.
+        </p>
         <span className="inline-flex justify-center mt-4 sm:ml-auto sm:mt-3 sm:justify-start">
           <a
             aria-label="mail"
