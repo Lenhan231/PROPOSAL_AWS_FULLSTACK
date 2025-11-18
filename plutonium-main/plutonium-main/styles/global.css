@@ -1,0 +1,36 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html {
+  min-width: 360px;
+  scroll-behavior: smooth;
+}
+
+#__next {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.sticky-nav {
+  position: sticky;
+  z-index: 50;
+  top: 0;
+  backdrop-filter: saturate(180%) blur(20px) !important;
+  transition: background-color 0.1 ease-in-out !important;
+}
+
+body::-webkit-scrollbar {
+  width: 0.75em;
+}
+
+body::-webkit-scrollbar-thumb {
+  background-color: rgb(39, 39, 39);
+  outline: 1px solid rgb(33, 34, 34);
+}
+
+::selection {
+  background-color: #f81ce5;
+  color: #fefefe;
+}
