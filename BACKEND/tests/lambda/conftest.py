@@ -1,21 +1,59 @@
 import os
-from typing import Dict, Any
+from typing import Any, Dict
 
 import boto3
 import pytest
 from moto import mock_aws
 
+# Aws Mock Stack
 @pytest.fixture
-def aws_env(monkeypatch):
-    monkeypatch.setenv("AWS_REGION", "ap-southeast-1")
-    monkeypatch.setenv("UPLOAD_URL_TTL_SECONDS", "900")
-    yield
+def aws_region() -> str:
+    """
+    Default AWS region for tests.
+
+    Can be overridden via AWS_REGION env if needed.
+    """
+    return os.getenv("AWS_REGION", "ap-southeast-1")
 
 
 @pytest.fixture
-@mock_aws
-def dynamodb_test(monkeypatch, aws_env):
-    dynamodb = boto3.client("dynamodb", region_name="ap-southeast-1")
+def moto_backend(aws_region):
+    """
+    Shared moto backend for all AWS services in a test.
+    Ensures S3, DynamoDB, etc. are mocked together.
+    """
+    with mock_aws():
+        yield
+
+
+@pytest.fixture
+def s3_bucket(moto_backend, aws_region) -> Dict[str, Any]:
+    """
+    Create a test S3 bucket and basic prefixes.
+    """
+    s3 = boto3.client("s3", region_name=aws_region)
+    bucket_name = "test-uploads-bucket"
+
+    if aws_region == "us-east-1":
+        s3.create_bucket(Bucket=bucket_name)
+    else:
+        s3.create_bucket(
+            Bucket=bucket_name,
+            CreateBucketConfiguration={"LocationConstraint": aws_region},
+        )
+
+    for prefix in ("uploads/", "public/books/", "quarantine/"):
+        s3.put_object(Bucket=bucket_name, Key=prefix)
+
+    return {"client": s3, "bucket_name": bucket_name, "region": aws_region}
+
+
+@pytest.fixture
+def books_table(moto_backend, aws_region):
+    """
+    Create the OnlineLibrary DynamoDB table with GSIs.
+    """
+    dynamodb = boto3.client("dynamodb", region_name=aws_region)
     table_name = "OnlineLibrary"
 
     dynamodb.create_table(
@@ -83,104 +121,49 @@ def dynamodb_test(monkeypatch, aws_env):
         ],
     )
 
-    # set env for Lambda handlers
+    return boto3.resource("dynamodb", region_name=aws_region).Table(table_name)
+
+def _set_lambda_common_env(
+    monkeypatch: pytest.MonkeyPatch,
+    aws_region: str,
+    bucket_name: str,
+    table_name: str,
+) -> None:
+    """
+    Helper to configure common Lambda environment variables.
+
+    Reuse this helper from other fixtures/tests that need the same
+    environment (e.g. validateMimeType, approveBook, getReadUrl).
+    """
+    monkeypatch.setenv("AWS_REGION", aws_region)
+    monkeypatch.setenv("UPLOAD_URL_TTL_SECONDS", "900")
+    monkeypatch.setenv("UPLOADS_BUCKET_NAME", bucket_name)
     monkeypatch.setenv("BOOKS_TABLE_NAME", table_name)
 
-    # return Table resource (not client)
-    return boto3.resource("dynamodb", region_name="ap-southeast-1").Table(table_name)
 
+# Testing function for each lambda
 @pytest.fixture
-@mock_aws
-def s3_test(monkeypatch, aws_env):
-    region = os.getenv("AWS_REGION", "ap-southeast-1")
-    bucket_name = "test-uploads-bucket"
+def upload_test_context(
+    monkeypatch, aws_region, s3_bucket, books_table
+) -> Dict[str, Any]:
+    """
+    High-level context specifically for upload-related Lambdas.
 
-    s3 = boto3.client("s3", region_name=region)
-
-    # S3 create bucket — phải khác nếu không phải us-east-1
-    if region == "us-east-1":
-        s3.create_bucket(Bucket=bucket_name)
-    else:
-        s3.create_bucket(
-            Bucket=bucket_name,
-            CreateBucketConfiguration={"LocationConstraint": region},
-        )
-
-    # Set env cho Lambda
-    monkeypatch.setenv("UPLOADS_BUCKET_NAME", bucket_name)
-
-    # Create expected folder structure
-    prefixes = [
-        "uploads/",
-        "public/books/",
-        "quarantine/"
-    ]
-
-    for prefix in prefixes:
-        s3.put_object(Bucket=bucket_name, Key=prefix)  # zero-byte folder objects
+    Other tests (validateMimeType, approveBook, etc.) can reuse the
+    lower-level fixtures `s3_bucket` and `books_table` directly.
+    """
+    _set_lambda_common_env(
+        monkeypatch=monkeypatch,
+        aws_region=aws_region,
+        bucket_name=s3_bucket["bucket_name"],
+        table_name=books_table.table_name,
+    )
 
     return {
-        "client": s3,
-        "bucket": bucket_name,
-        "region": region
+        "region": aws_region,
+        "bucket_name": s3_bucket["bucket_name"],
+        "table_name": books_table.table_name,
     }
-    
-
-@pytest.fixture
-def aws_region() -> str:
-    """
-    Default AWS region for tests.
-
-    Can be overridden via AWS_REGION env if needed.
-    """
-    return os.getenv("AWS_REGION", "ap-southeast-1")
 
 
-@pytest.fixture
-def upload_test_context(aws_env, aws_region) -> Dict[str, Any]:
-    """
-    Shared fixture for Lambda upload-related tests.
 
-    - Spins up moto mocks for S3 and DynamoDB
-    - Creates the uploads bucket
-    - Creates the OnlineLibrary DynamoDB table
-    - Exposes basic context (region, bucket, table) for tests
-    """
-    with mock_aws():
-        s3 = boto3.client("s3", region_name=aws_region)
-        dynamodb = boto3.client("dynamodb", region_name=aws_region)
-
-        bucket_name = "test-uploads-bucket"
-        table_name = "OnlineLibrary"
-
-        if aws_region == "us-east-1":
-            s3.create_bucket(Bucket=bucket_name)
-        else:
-            s3.create_bucket(
-                Bucket=bucket_name,
-                CreateBucketConfiguration={"LocationConstraint": aws_region},
-            )
-
-        dynamodb.create_table(
-            TableName=table_name,
-            KeySchema=[
-                {"AttributeName": "PK", "KeyType": "HASH"},
-                {"AttributeName": "SK", "KeyType": "RANGE"},
-            ],
-            AttributeDefinitions=[
-                {"AttributeName": "PK", "AttributeType": "S"},
-                {"AttributeName": "SK", "AttributeType": "S"},
-            ],
-            BillingMode="PAY_PER_REQUEST",
-        )
-
-        monkeypatch.setenv("AWS_REGION", aws_region)
-        monkeypatch.setenv("UPLOADS_BUCKET_NAME", bucket_name)
-        monkeypatch.setenv("BOOKS_TABLE_NAME", table_name)
-        monkeypatch.setenv("UPLOAD_URL_TTL_SECONDS", "900")
-
-        yield {
-            "region": aws_region,
-            "bucket_name": bucket_name,
-            "table_name": table_name,
-        }

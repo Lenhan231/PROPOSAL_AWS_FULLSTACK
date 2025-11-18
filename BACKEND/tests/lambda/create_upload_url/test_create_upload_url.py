@@ -4,6 +4,7 @@ import boto3
 
 from create_upload_url.handler import handler
 
+from utils.error_codes import ErrorCode
 
 def test_create_upload_url_happy_path(upload_test_context):
     region = upload_test_context["region"]
