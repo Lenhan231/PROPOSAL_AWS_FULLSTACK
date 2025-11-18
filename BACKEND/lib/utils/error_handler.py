@@ -6,7 +6,7 @@ import logging
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, Optional, TypeVar, cast
 
-from utils.error_codes import ErrorCode, get_http_status
+from lib.utils.error_codes import ErrorCode, get_http_status
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)

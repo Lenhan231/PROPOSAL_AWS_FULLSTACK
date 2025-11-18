@@ -22,12 +22,13 @@ from typing import Any, Dict, Optional
 
 import boto3
 
-from utils.error_handler import (
+from lib.utils.error_handler import (
     lambda_handler_wrapper,
     api_response,
     AppError,
 )
-from utils.error_codes import ErrorCode
+from lib.utils.error_codes import ErrorCode
+
 
 @dataclass
 class CreateUploadPayload:
@@ -39,15 +40,14 @@ class CreateUploadPayload:
 
 
 def _json_response(status_code: int, body: Dict[str, Any]) -> Dict[str, Any]:
-    return {
-        "statusCode": status_code,
-        "headers": {
-            "Content-Type": "application/json",
-            # NOTE: In production, restrict CORS to the frontend domain.
-            "Access-Control-Allow-Origin": "*",
-        },
-        "body": json.dumps(body),
-    }
+    """
+    Thin wrapper around api_response so we can inject
+    CORS headers in one place if needed.
+    """
+    response = api_response(status_code=status_code, body=body)
+    # NOTE: In production, restrict CORS to the frontend domain.
+    response["headers"]["Access-Control-Allow-Origin"] = "*"
+    return response
 
 
 def _get_jwt_claims(event: Dict[str, Any]) -> Dict[str, Any]:
@@ -164,6 +164,17 @@ def _create_presigned_put_url(
         ExpiresIn=expires_in,
     )
 
+
+def _get_env_or_error(name: str) -> str:
+    value = os.getenv(name)
+    if not value:
+        raise AppError(
+            error_code=ErrorCode.INTERNAL_ERROR,
+            message=f"Missing required environment variable: {name}",
+        )
+    return value
+
+
 @lambda_handler_wrapper
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """
@@ -171,77 +182,71 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
     Expects an API Gateway HTTP API event with Cognito JWT authorizer.
     """
+    # 1) Auth
+    claims = _get_jwt_claims(event)
+    if not claims:
+        raise AppError(
+            error_code=ErrorCode.UNAUTHORIZED,
+            message="Missing authentication claims",
+        )
+
+    user_id = claims.get("sub")
+    user_email = claims.get("email")
+    if not user_id:
+        raise AppError(
+            error_code=ErrorCode.UNAUTHORIZED,
+            message="Missing user id in JWT claims",
+        )
+
+    # 2) Parse body
     try:
-        # 1) Auth
-        claims = _get_jwt_claims(event)
-        if not claims:
-            raise AppError(
-                error_code=ErrorCode.UNAUTHORIZED,
-                message="Missing authentication claims",
-            )
-
-        user_id = claims.get("sub")
-        user_email = claims.get("email")
-
-        # 2) Parse body
-        try:
-            data = _parse_body(event)
-        except ValueError as exc:
-            # JSON không hợp lệ / body rỗng sai format
-            raise AppError(
-                error_code=ErrorCode.INVALID_REQUEST,
-                message=str(exc) or "Invalid JSON body",
-            )
-
-        # 3) Validate payload
-        try:
-            payload = _validate_and_build_payload(data)
-        except ValueError as exc:
-            # Thiếu field, fileSize âm, fileName trống,...
-            raise AppError(
-                error_code=ErrorCode.INVALID_REQUEST,
-                message=str(exc),
-            )
-
-        # 4) Env config
-        table_name = _get_env_or_error("BOOKS_TABLE_NAME")
-        bucket_name = _get_env_or_error("UPLOADS_BUCKET_NAME")
-        expires_in = int(os.getenv("UPLOAD_URL_TTL_SECONDS", "900"))
-
-        # 5) Build S3 key + DDB item
-        book_id = str(uuid.uuid4())
-        s3_key = _build_s3_key(book_id, payload.file_name)
-
-        _put_draft_book_item(
-            table_name=table_name,
-            book_id=book_id,
-            payload=payload,
-            user_id=user_id,
-            user_email=user_email,
-            s3_key=s3_key,
+        data = _parse_body(event)
+    except ValueError as exc:
+        raise AppError(
+            error_code=ErrorCode.INVALID_REQUEST,
+            message=str(exc) or "Invalid JSON body",
         )
 
-        # 6) Generate presigned URL
-        upload_url = _create_presigned_put_url(
-            bucket_name=bucket_name,
-            object_key=s3_key,
-            expires_in=expires_in,
+    # 3) Validate payload
+    try:
+        payload = _validate_and_build_payload(data)
+    except ValueError as exc:
+        raise AppError(
+            error_code=ErrorCode.INVALID_REQUEST,
+            message=str(exc),
         )
 
-        # 7) Success response
-        return _json_response(
-            200,
-            {
-                "uploadUrl": upload_url,
-                "bookId": book_id,
-                "expiresIn": expires_in,
-            },
-        )
+    # 4) Env config
+    table_name = _get_env_or_error("BOOKS_TABLE_NAME")
+    bucket_name = _get_env_or_error("UPLOADS_BUCKET_NAME")
+    expires_in = int(os.getenv("UPLOAD_URL_TTL_SECONDS", "900"))
 
-    except Exception as e:
-        logger.exception("Unhandled exception in Lambda handler")
-        return api_error(
-            ErrorCode.INTERNAL_ERROR,
-            "Internal server error",
-            http_status=500,
-        )
+    # 5) Build S3 key + DDB item
+    book_id = str(uuid.uuid4())
+    s3_key = _build_s3_key(book_id, payload.file_name)
+
+    _put_draft_book_item(
+        table_name=table_name,
+        book_id=book_id,
+        payload=payload,
+        user_id=user_id,
+        user_email=user_email,
+        s3_key=s3_key,
+    )
+
+    # 6) Generate presigned URL
+    upload_url = _create_presigned_put_url(
+        bucket_name=bucket_name,
+        object_key=s3_key,
+        expires_in=expires_in,
+    )
+
+    # 7) Success response
+    return _json_response(
+        200,
+        {
+            "uploadUrl": upload_url,
+            "bookId": book_id,
+            "expiresIn": expires_in,
+        },
+    )
