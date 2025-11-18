@@ -22,6 +22,12 @@ from typing import Any, Dict, Optional
 
 import boto3
 
+from utils.error_handler import (
+    lambda_handler_wrapper,
+    api_response,
+    AppError,
+)
+from utils.error_codes import ErrorCode
 
 @dataclass
 class CreateUploadPayload:
@@ -103,13 +109,6 @@ def _validate_and_build_payload(data: Dict[str, Any]) -> CreateUploadPayload:
     )
 
 
-def _get_env_or_error(name: str) -> str:
-    value = os.getenv(name)
-    if not value:
-        raise RuntimeError(f"Missing required environment variable: {name}")
-    return value
-
-
 def _build_s3_key(book_id: str, file_name: str) -> str:
     return f"uploads/{book_id}/{file_name}"
 
@@ -165,7 +164,7 @@ def _create_presigned_put_url(
         ExpiresIn=expires_in,
     )
 
-
+@lambda_handler_wrapper
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """
     AWS Lambda handler for createUploadUrl.
@@ -173,22 +172,43 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     Expects an API Gateway HTTP API event with Cognito JWT authorizer.
     """
     try:
+        # 1) Auth
         claims = _get_jwt_claims(event)
-        user_id = claims.get("sub")
-        user_email = claims.get("email")
-        if not user_id:
-            return _json_response(
-                401,
-                {"message": "Unauthorized: missing user id in JWT claims"},
+        if not claims:
+            raise AppError(
+                error_code=ErrorCode.UNAUTHORIZED,
+                message="Missing authentication claims",
             )
 
-        data = _parse_body(event)
-        payload = _validate_and_build_payload(data)
+        user_id = claims.get("sub")
+        user_email = claims.get("email")
 
+        # 2) Parse body
+        try:
+            data = _parse_body(event)
+        except ValueError as exc:
+            # JSON không hợp lệ / body rỗng sai format
+            raise AppError(
+                error_code=ErrorCode.INVALID_REQUEST,
+                message=str(exc) or "Invalid JSON body",
+            )
+
+        # 3) Validate payload
+        try:
+            payload = _validate_and_build_payload(data)
+        except ValueError as exc:
+            # Thiếu field, fileSize âm, fileName trống,...
+            raise AppError(
+                error_code=ErrorCode.INVALID_REQUEST,
+                message=str(exc),
+            )
+
+        # 4) Env config
         table_name = _get_env_or_error("BOOKS_TABLE_NAME")
         bucket_name = _get_env_or_error("UPLOADS_BUCKET_NAME")
         expires_in = int(os.getenv("UPLOAD_URL_TTL_SECONDS", "900"))
 
+        # 5) Build S3 key + DDB item
         book_id = str(uuid.uuid4())
         s3_key = _build_s3_key(book_id, payload.file_name)
 
@@ -201,12 +221,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             s3_key=s3_key,
         )
 
+        # 6) Generate presigned URL
         upload_url = _create_presigned_put_url(
             bucket_name=bucket_name,
             object_key=s3_key,
             expires_in=expires_in,
         )
 
+        # 7) Success response
         return _json_response(
             200,
             {
@@ -215,8 +237,11 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 "expiresIn": expires_in,
             },
         )
-    except ValueError as exc:
-        return _json_response(400, {"message": str(exc)})
-    except Exception:
-        # In production you might log the exception with more detail.
-        return _json_response(500, {"message": "Internal server error"})
+
+    except Exception as e:
+        logger.exception("Unhandled exception in Lambda handler")
+        return api_error(
+            ErrorCode.INTERNAL_ERROR,
+            "Internal server error",
+            http_status=500,
+        )
