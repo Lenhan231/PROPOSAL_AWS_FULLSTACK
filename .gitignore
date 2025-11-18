@@ -8,3 +8,28 @@ logs
 
 BACKEND/node_modules
 BACKEND/.venv
+
+
+# Python cache
+BACKEND/.pytest_cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual env
+.venv/
+env/
+venv/
+
+# CDK
+cdk.out/
+
+# Node
+node_modules/
+package-lock.json
+
+
+BACKEND/__pycache__/
+BACKEND/lambda/**/__pycache__/
+BACKEND/tests/**/__pycache__/
