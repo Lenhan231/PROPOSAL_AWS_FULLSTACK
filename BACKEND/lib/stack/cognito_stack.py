@@ -24,7 +24,7 @@ from aws_cdk import (
     RemovalPolicy
 )
 from constructs import Construct
-
+from aws_cdk import Duration
 
 class CognitoStack(Stack):
     """Stack for Cognito User Pool and authentication"""
@@ -48,14 +48,38 @@ class CognitoStack(Stack):
                 require_symbols=True,
             ),
         )
-        # Placeholder property (will be implemented in Task 2)
-        self.user_pool = None
-        
+
+        # User Pool Client (for frontend)
+        user_pool_client = user_pool.add_client(
+            "UserPoolClient",
+            auth_flows=cognito.AuthFlow(
+                user_password=True,      # Cho phép username/password auth
+                user_srp=True,           # Secure Remote Password protocol
+            ),
+            generate_secret=False,       # Public client (frontend không cần secret)
+            id_token_validity=Duration.hours(1),
+            access_token_validity=Duration.hours(1),
+            refresh_token_validity=Duration.days(30),
+        )
+        # Admin Group
+        admin_group = cognito.CfnUserPoolGroup(
+            self,
+            "AdminGroup",
+            user_pool_id=user_pool.user_pool_id,
+            group_name="Admins",
+            description="Administrator users with full access",
+        )
+
+        # Properties for other stacks to reference
+        self.user_pool = user_pool
+        self.user_pool_client = user_pool_client
+        self.admin_group = admin_group
+
         # Outputs
         CfnOutput(
             self,
             "UserPoolId",
-            value="TODO-TASK-2",
+            value=user_pool.user_pool_id,
             description="Cognito User Pool ID",
             export_name=f"{construct_id}-UserPool-Id"
         )
@@ -63,7 +87,7 @@ class CognitoStack(Stack):
         CfnOutput(
             self,
             "UserPoolArn",
-            value="TODO-TASK-2",
+            value=user_pool.user_pool_arn,
             description="Cognito User Pool ARN",
             export_name=f"{construct_id}-UserPool-Arn"
         )
@@ -71,7 +95,7 @@ class CognitoStack(Stack):
         CfnOutput(
             self,
             "UserPoolClientId",
-            value="TODO-TASK-2",
+            value=user_pool_client.user_pool_client_id,
             description="Cognito User Pool Client ID for frontend",
             export_name=f"{construct_id}-UserPoolClient-Id"
         )
