@@ -10,6 +10,7 @@ import aws_cdk as cdk
 from lib.stack.cognito_stack import CognitoStack
 from lib.stack.database_stack import DatabaseStack
 from lib.stack.storage_stack import StorageStack
+from lib.stack.cdn_stack import CdnStack
 
 app = cdk.App()
 
@@ -49,8 +50,17 @@ storage_stack = StorageStack(
     description="S3 bucket for file uploads"
 )
 
+# Phase 4: CdnStack
+cdn_stack = CdnStack(
+    app,
+    f"{stack_prefix}-Cdn",
+    storage_stack=storage_stack,
+    env=env,
+    description="CloudFront CDN for serving books"
+)
+
 # Apply tags
-for stack in [cognito_stack, database_stack, storage_stack]:
+for stack in [cognito_stack, database_stack, storage_stack, cdn_stack]:
     cdk.Tags.of(stack).add("Project", "OnlineLibrary")
     cdk.Tags.of(stack).add("Environment", env_name)
     cdk.Tags.of(stack).add("ManagedBy", "CDK")
