@@ -1,12 +1,14 @@
 import { useState } from "react";
+import { Auth } from "aws-amplify";
 import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
+import { useAuth } from "../src/contexts/AuthContext";
 
 export default function SignupPage() {
   const router = useRouter();
+  const { signUpUser, confirmSignUpUser, resendCode } = useAuth();
   const [formData, setFormData] = useState({
-    name: "",
     email: "",
     password: "",
     confirmPassword: "",
@@ -14,9 +16,12 @@ export default function SignupPage() {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [passwordStrength, setPasswordStrength] = useState(0);
+  const [needsConfirmation, setNeedsConfirmation] = useState(false);
+  const [confirmationCode, setConfirmationCode] = useState("");
 
   const checkPasswordStrength = (password) => {
     let strength = 0;
@@ -54,11 +59,6 @@ export default function SignupPage() {
     setError("");
 
     // Validation
-    if (!formData.name.trim()) {
-      setError("Vui lòng nhập họ tên!");
-      return;
-    }
-
     if (formData.password !== formData.confirmPassword) {
       setError("Mật khẩu xác nhận không khớp!");
       return;
@@ -82,21 +82,60 @@ export default function SignupPage() {
     setLoading(true);
 
     try {
-      // TODO: Implement Cognito signup
-      // await Auth.signUp({
-      //   username: formData.email,
-      //   password: formData.password,
-      //   attributes: { name: formData.name }
-      // });
+      // Đăng ký với Cognito
+      const { isSignUpComplete, nextStep } = await signUpUser({
+        email: formData.email,
+        password: formData.password,
+      });
 
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-
-      // Show success message and redirect
-      alert("Đăng ký thành công! Vui lòng kiểm tra email để xác thực tài khoản.");
-      router.push("/login");
+      if (isSignUpComplete) {
+        alert("Đăng ký thành công!");
+        router.push("/login");
+      } else if (nextStep.signUpStep === 'CONFIRM_SIGN_UP') {
+        // Cần xác thực email
+        setNeedsConfirmation(true);
+        setError("");
+      }
     } catch (err) {
-      setError(err.message || "Đăng ký thất bại. Vui lòng thử lại.");
+      console.error('Signup error:', err);
+      // Xử lý các lỗi phổ biến
+      if (err.name === 'UsernameExistsException') {
+        setError("Email đã được sử dụng. Vui lòng sử dụng email khác.");
+      } else if (err.name === 'InvalidPasswordException') {
+        setError("Mật khẩu không đủ mạnh. Vui lòng sử dụng mật khẩu có chữ hoa, chữ thường, số và ký tự đặc biệt.");
+      } else if (err.name === 'InvalidParameterException') {
+        setError("Thông tin không hợp lệ. Vui lòng kiểm tra lại.");
+      } else {
+        setError(err.message || "Đăng ký thất bại. Vui lòng thử lại.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleConfirmSignUp = async (e) => {
+    e.preventDefault();
+    setError("");
+    setSuccess("");
+    setLoading(true);
+
+    try {
+      await confirmSignUpUser(formData.email, confirmationCode);
+      setSuccess("🎉 Xác thực thành công! Đang chuyển đến trang đăng nhập...");
+      setTimeout(() => {
+        router.push("/login");
+      }, 2000);
+    } catch (err) {
+      console.error('Confirm error:', err);
+      if (err.name === 'CodeMismatchException') {
+        setError("❌ Mã xác thực không đúng. Vui lòng kiểm tra lại email hoặc nhấn 'Gửi lại' để nhận mã mới.");
+      } else if (err.name === 'ExpiredCodeException') {
+        setError("⏰ Mã xác thực đã hết hạn. Vui lòng nhấn 'Gửi lại' để nhận mã mới.");
+      } else if (err.name === 'LimitExceededException') {
+        setError("⚠️ Đã vượt quá số lần thử. Vui lòng đợi một lúc rồi thử lại.");
+      } else {
+        setError(err.message || "❌ Xác thực thất bại. Vui lòng thử lại.");
+      }
     } finally {
       setLoading(false);
     }
@@ -127,31 +166,101 @@ export default function SignupPage() {
 
           {/* Signup Card */}
           <div className="p-8 bg-white border border-gray-200 shadow-2xl rounded-2xl dark:bg-gray-800 dark:border-gray-700">
-            <form onSubmit={handleSubmit} className="space-y-5">
-              {/* Error Message */}
-              {error && (
-                <div className="p-4 bg-red-50 border border-red-200 rounded-lg dark:bg-red-900/20 dark:border-red-800">
-                  <div className="flex items-center">
-                    <span className="mr-2 text-red-600 dark:text-red-400">⚠️</span>
-                    <p className="text-sm text-red-800 dark:text-red-300">{error}</p>
+            {needsConfirmation ? (
+              // Form xác thực email
+              <form onSubmit={handleConfirmSignUp} className="space-y-5">
+                <div className="text-center mb-6">
+                  <div className="mx-auto w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mb-4">
+                    <span className="text-3xl">📧</span>
                   </div>
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                    Xác thực Email
+                  </h2>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Chúng tôi đã gửi mã xác thực đến email <strong>{formData.email}</strong>
+                  </p>
                 </div>
-              )}
 
-              {/* Name Field */}
-              <div>
-                <label className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
-                  Họ và tên
-                </label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-4 py-3 text-gray-900 transition-colors bg-white border border-gray-300 rounded-lg dark:bg-gray-700 dark:text-white dark:border-gray-600 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Nguyễn Văn A"
-                  required
-                />
-              </div>
+                {/* Error Message */}
+                {error && (
+                  <div className="p-4 bg-red-50 border border-red-200 rounded-lg dark:bg-red-900/20 dark:border-red-800">
+                    <div className="flex items-center">
+                      <span className="mr-2 text-red-600 dark:text-red-400">⚠️</span>
+                      <p className="text-sm text-red-800 dark:text-red-300">{error}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Confirmation Code Field */}
+                <div>
+                  <label className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+                    Mã xác thực
+                  </label>
+                  <input
+                    type="text"
+                    value={confirmationCode}
+                    onChange={(e) => setConfirmationCode(e.target.value)}
+                    className="w-full px-4 py-3 text-center text-2xl tracking-widest font-mono text-gray-900 transition-colors bg-white border border-gray-300 rounded-lg dark:bg-gray-700 dark:text-white dark:border-gray-600 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="000000"
+                    maxLength="6"
+                    required
+                  />
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    Nhập mã 6 số từ email của bạn
+                  </p>
+                </div>
+
+                {/* Submit Button */}
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full px-6 py-3 font-semibold text-white transition-all duration-300 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-lg hover:shadow-xl hover:shadow-blue-500/50 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                >
+                  {loading ? "Đang xác thực..." : "Xác thực"}
+                </button>
+
+                {/* Success Message */}
+                {success && (
+                  <div className="p-4 bg-green-50 border border-green-200 rounded-lg dark:bg-green-900/20 dark:border-green-800">
+                    <div className="flex items-center">
+                      <span className="mr-2 text-green-600 dark:text-green-400">✅</span>
+                      <p className="text-sm text-green-800 dark:text-green-300">{success}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Resend Code */}
+                <div className="text-center">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        setError("");
+                        setSuccess("");
+                        await resendCode(formData.email);
+                        setSuccess("✅ Đã gửi lại mã xác thực! Vui lòng kiểm tra email.");
+                      } catch (err) {
+                        setError("❌ Không thể gửi lại mã. Vui lòng thử lại sau.");
+                      }
+                    }}
+                    className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                  >
+                    Không nhận được mã? Gửi lại
+                  </button>
+                </div>
+              </form>
+            ) : (
+              // Form đăng ký
+              <form onSubmit={handleSubmit} className="space-y-5">
+                {/* Error Message */}
+                {error && (
+                  <div className="p-4 bg-red-50 border border-red-200 rounded-lg dark:bg-red-900/20 dark:border-red-800">
+                    <div className="flex items-center">
+                      <span className="mr-2 text-red-600 dark:text-red-400">⚠️</span>
+                      <p className="text-sm text-red-800 dark:text-red-300">{error}</p>
+                    </div>
+                  </div>
+                )}
 
               {/* Email Field */}
               <div>
@@ -288,6 +397,7 @@ export default function SignupPage() {
                 )}
               </button>
             </form>
+            )}
 
             {/* Divider */}
             <div className="relative my-6">
