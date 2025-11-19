@@ -99,3 +99,5 @@ class CognitoStack(Stack):
             description="Cognito User Pool Client ID for frontend",
             export_name=f"{construct_id}-UserPoolClient-Id"
         )
+
+        self.cognito = cognito

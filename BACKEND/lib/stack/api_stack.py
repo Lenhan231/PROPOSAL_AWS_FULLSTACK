@@ -29,51 +29,54 @@ Dependencies: Cần tất cả stacks trước (Cognito, Database, Storage, CDN)
 from aws_cdk import (
     Stack,
     aws_apigatewayv2 as apigw,
-    aws_cognito as cognito,
-    aws_dynamodb as dynamodb,
-    aws_s3 as s3,
-    aws_cloudfront as cloudfront,
-    CfnOutput
+    aws_apigatewayv2_integrations as integrations,
+    aws_lambda as _lambda,
+    CfnOutput,
 )
 from constructs import Construct
 
 
 class ApiStack(Stack):
-    """Stack for API Gateway and Lambda functions"""
+    """Stack for HTTP API Gateway + Lambda routes"""
 
-    def __init__(
-        self,
-        scope: Construct,
-        construct_id: str,
-        user_pool: cognito.IUserPool = None,
-        table: dynamodb.ITable = None,
-        bucket: s3.IBucket = None,
-        distribution: cloudfront.IDistribution = None,
-        cloudfront_key_pair_id: str = None,
-        **kwargs
-    ) -> None:
-        super().__init__(scope, construct_id, **kwargs)
+    def __init__(self, scope: Construct, construct_id: str, *, env=None, **kwargs) -> None:
+        super().__init__(scope, construct_id, env=env, **kwargs)
 
-        # TODO: Implement API Gateway and Lambda functions in Tasks 6-16
-        # This is a placeholder for the stack structure
-        
-        # Placeholder properties (will be implemented in Tasks 6-16)
-        self.api = None
-        self.lambda_functions = []
-        
-        # Outputs
+        # 1) Lambda cho createUploadUrl
+        create_upload_fn = _lambda.Function(
+            self,
+            "CreateUploadUrlFn",
+            runtime=_lambda.Runtime.PYTHON_3_12,
+            handler="handler.handler",            # file.handler
+            code=_lambda.Code.from_asset("lambda/create_upload_url"),
+        )
+
+        # 2) HTTP API
+        http_api = apigw.HttpApi(
+            self,
+            "OnlineLibraryHttpApi",
+            api_name="OnlineLibraryApi",
+        )
+
+        # 3) Route: POST /books/upload-url → Lambda
+        http_api.add_routes(
+            path="/books/upload-url",
+            methods=[apigw.HttpMethod.POST],
+            integration=integrations.HttpLambdaIntegration(
+                "CreateUploadUrlIntegration",
+                handler=create_upload_fn,
+            ),
+        )
+
+        # 4) Output endpoint cho FE/console
         CfnOutput(
             self,
-            "ApiEndpoint",
-            value="TODO-TASKS-6-16",
-            description="API Gateway endpoint URL",
-            export_name=f"{construct_id}-Api-Endpoint"
+            "HttpApiUrl",
+            value=http_api.api_endpoint,
+            description="Base URL for HTTP API",
+            export_name=f"{construct_id}-HttpApi-Url",
         )
-        
-        CfnOutput(
-            self,
-            "ApiId",
-            value="TODO-TASKS-6-16",
-            description="API Gateway ID",
-            export_name=f"{construct_id}-Api-Id"
-        )
+
+        # expose cho stack khác nếu cần
+        self.http_api = http_api
+        self.create_upload_fn = create_upload_fn

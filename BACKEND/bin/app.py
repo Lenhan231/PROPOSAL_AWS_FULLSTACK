@@ -11,6 +11,7 @@ from lib.stack.cognito_stack import CognitoStack
 from lib.stack.database_stack import DatabaseStack
 from lib.stack.storage_stack import StorageStack
 from lib.stack.cdn_stack import CdnStack
+from lib.stack.api_stack import ApiStack
 
 app = cdk.App()
 
@@ -58,6 +59,15 @@ cdn_stack = CdnStack(
     env=env,
     description="CloudFront CDN for serving books"
 )
+
+# Phase 5: Apiateway
+api_stack = ApiStack(
+    app,
+    f"{stack_prefix}-Api",
+    env=env,
+    description="HTTP API + Lambda for Online Library",
+)
+
 
 # Apply tags
 for stack in [cognito_stack, database_stack, storage_stack, cdn_stack]:
