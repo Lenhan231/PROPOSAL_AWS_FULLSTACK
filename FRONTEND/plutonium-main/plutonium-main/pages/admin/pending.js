@@ -1,7 +1,7 @@
-// pages/admin.js
+// pages/admin/pending.js
 import React from 'react';
-import Header from '../components/Header'; // Reusing your existing Header
-import Footer from '../components/Footer'; // Reusing your existing Footer
+import Header from '../../components/Header'; // Adjusted path for admin subdirectory
+import Footer from '../../components/Footer'; // Adjusted path for admin subdirectory
 
 export default function AdminDashboard() {
   return (
@@ -24,7 +24,7 @@ export default function AdminDashboard() {
           {/* Card 2 */}
           <div className="border p-6 rounded-lg shadow-md bg-gray-900">
             <h2 className="text-xl font-semibold text-white">User Uploads</h2>
-            <p className="text-gray-700 mt-2">Review files uploaded by users.</p>
+            <p className="text-gray-600 mt-2">Review files uploaded by users.</p>
             <button className="mt-4 bg-green-600 text-white px-4 py-2 rounded">
               Review Uploads
             </button>
