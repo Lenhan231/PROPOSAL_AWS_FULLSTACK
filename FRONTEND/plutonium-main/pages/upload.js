@@ -2,6 +2,7 @@ import { useState } from "react";
 import Head from "next/head";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
+import { requestUploadUrl, uploadFileToS3 } from "../src/services/api";
 
 export default function UploadPage() {
   const [formData, setFormData] = useState({
@@ -49,35 +50,18 @@ export default function UploadPage() {
     setUploadProgress(0);
 
     try {
-      // TODO: Step 1 - Get presigned URL from API
-      // const response = await fetch('/api/books/upload-url', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({
-      //     fileName: file.name,
-      //     fileSize: file.size,
-      //     ...formData
-      //   })
-      // });
-      // const { uploadUrl, bookId } = await response.json();
+      // Step 1: Request presigned URL from backend
+      const { uploadUrl, objectKey } = await requestUploadUrl({
+        title: formData.title,
+        author: formData.author,
+        description: formData.description,
+        file
+      });
 
-      // TODO: Step 2 - Upload file to S3 using presigned URL
-      // await fetch(uploadUrl, {
-      //   method: 'PUT',
-      //   body: file,
-      //   onUploadProgress: (progressEvent) => {
-      //     const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-      //     setUploadProgress(progress);
-      //   }
-      // });
+      // Step 2: PUT file to S3 via presigned URL with progress
+      await uploadFileToS3(uploadUrl, file, (pct) => setUploadProgress(pct));
 
-      // Simulate upload
-      for (let i = 0; i <= 100; i += 10) {
-        await new Promise((resolve) => setTimeout(resolve, 200));
-        setUploadProgress(i);
-      }
-
-      alert("Upload thành công! Sách của bạn đang chờ được duyệt.");
+      alert("Upload thành công! Sách của bạn đang chờ được duyệt. Mã đối tượng: " + objectKey);
       
       // Reset form
       setFormData({ title: "", author: "", description: "" });
@@ -191,7 +175,7 @@ export default function UploadPage() {
               disabled={uploading}
               className="w-full px-6 py-3 font-medium text-white transition-colors bg-blue-600 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
-              {uploading ? "Đang tải lên..." : "Tải lên"}
+              {uploading ? `Đang tải lên... ${uploadProgress}%` : "Tải lên"}
             </button>
           </form>
         </div>

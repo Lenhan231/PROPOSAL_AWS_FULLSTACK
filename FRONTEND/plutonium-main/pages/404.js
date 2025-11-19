@@ -24,10 +24,8 @@ export default function Error() {
             Plutonium doesn&apos;t do well with generic 404 pages. Hence: this
             page. If you&apos;re here from clicking demo: it was on purpose!
           </p>
-          <Link href="/">
-            <a className="px-4 py-2.5 text-black dark:text-white border dark:hover:bg-white dark:hover:text-black rounded-lg shadow transition duration-300 hover:shadow-md">
+          <Link href="/" className="px-4 py-2.5 text-black dark:text-white border dark:hover:bg-white dark:hover:text-black rounded-lg shadow transition duration-300 hover:shadow-md">
               Return Home
-            </a>
           </Link>
         </div>
       </div>
