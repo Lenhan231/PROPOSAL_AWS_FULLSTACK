@@ -24,7 +24,8 @@ from aws_cdk import (
     Stack,
     aws_s3 as s3,
     CfnOutput,
-    RemovalPolicy
+    RemovalPolicy,
+    Duration,
 )
 from constructs import Construct
 
@@ -35,25 +36,45 @@ class StorageStack(Stack):
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
-        # TODO: Implement S3 bucket in Task 4
-        # This is a placeholder for the stack structure
-        
-        # Placeholder property (will be implemented in Task 4)
-        self.bucket = None
-        
-        # Outputs
+        bucket = s3.Bucket(
+            self,
+            "S3Bucket",
+            versioned=True,
+            block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
+            encryption=s3.BucketEncryption.S3_MANAGED,
+            enforce_ssl=True,
+            removal_policy=RemovalPolicy.DESTROY,  # DEV: DESTROY, PROD: RETAIN
+            auto_delete_objects=True,
+        )
+
+        # === LIFECYCLE: Auto-delete uploads/ after 72h ===
+        bucket.add_lifecycle_rule(
+            id="UploadsAutoCleanup",
+            prefix="uploads/",
+            expiration=Duration.hours(72),
+        )
+
+        # Placeholder event — sẽ connect Lambda sau
+        # bucket.add_event_notification(
+        #     s3.EventType.OBJECT_CREATED,
+        #     s3n.LambdaDestination(lambda_fn),
+        #     prefix="uploads/"
+        # )
+
+        # === OUTPUTS ===
         CfnOutput(
             self,
             "BucketName",
-            value="TODO-TASK-4",
-            description="S3 bucket name",
-            export_name=f"{construct_id}-Bucket-Name"
+            value=bucket.bucket_name,
+            export_name=f"{construct_id}-Bucket-Name",
         )
-        
+
         CfnOutput(
             self,
             "BucketArn",
-            value="TODO-TASK-4",
-            description="S3 bucket ARN",
-            export_name=f"{construct_id}-Bucket-Arn"
+            value=bucket.bucket_arn,
+            export_name=f"{construct_id}-Bucket-Arn",
         )
+
+        # Property for other stacks to reference
+        self.bucket = bucket

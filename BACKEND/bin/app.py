@@ -8,6 +8,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import os
 import aws_cdk as cdk
 from lib.stack.cognito_stack import CognitoStack
+from lib.stack.database_stack import DatabaseStack
+from lib.stack.storage_stack import StorageStack
 
 app = cdk.App()
 
@@ -23,7 +25,7 @@ env = cdk.Environment(
 # Stack name prefix
 stack_prefix = f"OnlineLibrary-{env_name}"
 
-# Phase 1: CognitoStack only (for now)
+# Phase 1: CognitoStack
 cognito_stack = CognitoStack(
     app,
     f"{stack_prefix}-Cognito",
@@ -31,9 +33,27 @@ cognito_stack = CognitoStack(
     description="Cognito User Pool for authentication"
 )
 
+# Phase 2: DatabaseStack
+database_stack = DatabaseStack(
+    app,
+    f"{stack_prefix}-Database",
+    env=env,
+    description="Database for Books metadata"
+)
+
+# Phase 3: StorageStack
+storage_stack = StorageStack(
+    app,
+    f"{stack_prefix}-Storage",
+    env=env,
+    description="S3 bucket for file uploads"
+)
+
 # Apply tags
-cdk.Tags.of(cognito_stack).add("Project", "OnlineLibrary")
-cdk.Tags.of(cognito_stack).add("Environment", env_name)
-cdk.Tags.of(cognito_stack).add("ManagedBy", "CDK")
+for stack in [cognito_stack, database_stack, storage_stack]:
+    cdk.Tags.of(stack).add("Project", "OnlineLibrary")
+    cdk.Tags.of(stack).add("Environment", env_name)
+    cdk.Tags.of(stack).add("ManagedBy", "CDK")
+
 
 app.synth()

@@ -1,62 +1,121 @@
-"""
-Phase 1 - Task #3: DatabaseStack
-
-Mục đích: Lưu trữ tất cả metadata của sách & trạng thái upload
-
-Components:
-- DynamoDB Table: Single-table design với PK/SK
-- 6 GSI (Global Secondary Indexes):
-  * GSI1: Title search
-  * GSI2: Author search
-  * GSI3: Email lookup
-  * GSI5: Status-based pending list (admin)
-  * GSI6: Uploader-based my uploads (user)
-  * GSI4: Reserved cho future Shelves/Favorites
-- TTL: Auto-cleanup orphaned records sau 72h
-- Billing: On-Demand (PAY_PER_REQUEST)
-
-Outputs:
-- TableName: Tên của DynamoDB table
-- TableArn: ARN của table
-
-Dependencies: Không phụ thuộc Cognito → Có thể làm song song, 
-              nhưng nên làm sau Cognito để thống nhất naming
-"""
-
 from aws_cdk import (
     Stack,
     aws_dynamodb as dynamodb,
     CfnOutput,
-    RemovalPolicy
+    RemovalPolicy,
 )
 from constructs import Construct
 
 
 class DatabaseStack(Stack):
-    """Stack for DynamoDB table"""
+    """Stack for DynamoDB table and indexes"""
 
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
-        # TODO: Implement DynamoDB table in Task 3
-        # This is a placeholder for the stack structure
-        
-        # Placeholder property (will be implemented in Task 3)
-        self.table = None
-        
-        # Outputs
-        CfnOutput(
+        # TODO: Create main table
+        table = dynamodb.Table(
             self,
-            "TableName",
-            value="TODO-TASK-3",
-            description="DynamoDB table name",
-            export_name=f"{construct_id}-Table-Name"
+            "OnlineLibraryTable",
+            table_name="OnlineLibrary",
+            partition_key=dynamodb.Attribute(
+                name="PK",
+                type=dynamodb.AttributeType.STRING,
+            ),
+            sort_key=dynamodb.Attribute(
+                name="SK",
+                type=dynamodb.AttributeType.STRING,
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,  # On-Demand
+            removal_policy=RemovalPolicy.DESTROY,  # For dev ,
+            time_to_live_attribute="ttl"   
         )
-        
+
+        # TODO: Add GSI1, GSI2, GSI3, GSI5, GSI6
+
+        # === GSI1 – title search: GSI1PK, GSI1SK ===
+        table.add_global_secondary_index(
+            index_name="GSI1",
+            partition_key=dynamodb.Attribute(
+                name="GSI1PK",
+                type=dynamodb.AttributeType.STRING,
+            ),
+            sort_key=dynamodb.Attribute(
+                name="GSI1SK",
+                type=dynamodb.AttributeType.STRING,
+            ),
+            projection_type=dynamodb.ProjectionType.ALL,
+        )
+
+        # === GSI2 – author search: GSI2PK, GSI2SK ===
+        table.add_global_secondary_index(
+            index_name="GSI2",
+            partition_key=dynamodb.Attribute(
+                name="GSI2PK",
+                type=dynamodb.AttributeType.STRING,
+            ),
+            sort_key=dynamodb.Attribute(
+                name="GSI2SK",
+                type=dynamodb.AttributeType.STRING,
+            ),
+            projection_type=dynamodb.ProjectionType.ALL,
+        )
+
+        # === GSI3 – email lookup: GSI3PK, GSI3SK ===
+        table.add_global_secondary_index(
+            index_name="GSI3",
+            partition_key=dynamodb.Attribute(
+                name="GSI3PK",
+                type=dynamodb.AttributeType.STRING,
+            ),
+            sort_key=dynamodb.Attribute(
+                name="GSI3SK",
+                type=dynamodb.AttributeType.STRING,
+            ),
+            projection_type=dynamodb.ProjectionType.ALL,
+        )
+
+        # === GSI5 – status query (pending list): GSI5PK, GSI5SK ===
+        table.add_global_secondary_index(
+            index_name="GSI5",
+            partition_key=dynamodb.Attribute(
+                name="GSI5PK",
+                type=dynamodb.AttributeType.STRING,
+            ),
+            sort_key=dynamodb.Attribute(
+                name="GSI5SK",
+                type=dynamodb.AttributeType.STRING,
+            ),
+            projection_type=dynamodb.ProjectionType.ALL,
+        )
+
+        # === GSI6 – uploader query (my uploads): GSI6PK, GSI6SK ===
+        table.add_global_secondary_index(
+            index_name="GSI6",
+            partition_key=dynamodb.Attribute(
+                name="GSI6PK",
+                type=dynamodb.AttributeType.STRING,
+            ),
+            sort_key=dynamodb.Attribute(
+                name="GSI6SK",
+                type=dynamodb.AttributeType.STRING,
+            ),
+            projection_type=dynamodb.ProjectionType.ALL,
+        )
+
+        # TODO: Add outputs
         CfnOutput(
             self,
-            "TableArn",
-            value="TODO-TASK-3",
-            description="DynamoDB table ARN",
-            export_name=f"{construct_id}-Table-Arn"
+            "MainTableName",
+            value=table.table_name,
+            description="DynamoDB main table name",
+            export_name=f"{construct_id}-MainTable-Name",
+        )
+
+        CfnOutput(
+            self,
+            'MainTableArn',
+            value=table.table_arn,
+            description="DynamoDB main table ARN",
+            export_name=f"{construct_id}-MainTable-Arn",
         )

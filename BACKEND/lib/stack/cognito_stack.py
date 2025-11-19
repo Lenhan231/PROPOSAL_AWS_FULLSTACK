@@ -32,7 +32,6 @@ class CognitoStack(Stack):
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
-        # TODO: Implement Cognito User Pool 
         # This is a placeholder for the stack structure
         user_pool = cognito.UserPool(
             self,
@@ -61,6 +60,7 @@ class CognitoStack(Stack):
             access_token_validity=Duration.hours(1),
             refresh_token_validity=Duration.days(30),
         )
+
         # Admin Group
         admin_group = cognito.CfnUserPoolGroup(
             self,
