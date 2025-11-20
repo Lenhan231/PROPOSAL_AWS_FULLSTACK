@@ -1,16 +1,28 @@
 import { useState, useEffect } from "react";
 import { useTheme } from "next-themes";
 import Link from "next/link";
-import { useAuth } from "../store/authStore";
+import { useRouter } from "next/router";
+import { useAuth } from "../src/contexts/AuthContext";
 
 export default function Header() {
   const [navbarOpen, setNavbarOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
   const { theme, setTheme } = useTheme();
-  const { user, isAuthenticated, isAdmin, signOut } = useAuth();
+  const { user, signOutUser } = useAuth();
+  const router = useRouter();
 
   // When mounted on client, now we can show the UI
   useEffect(() => setMounted(true), []);
+
+  const handleSignOut = async () => {
+    try {
+      await signOutUser();
+      router.push("/");
+    } catch (err) {
+      console.error("Sign out error:", err);
+    }
+  };
 
   if (!mounted) return null;
 
@@ -94,29 +106,44 @@ export default function Header() {
               </svg>
             )}
           </button>
-          {isAuthenticated ? (
-            <>
-              {isAdmin && (
-                <Link
-                  href="/admin/pending"
-                  className="invisible md:visible mr-4 text-black dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition duration-300"
-                >
-                  Admin
-                </Link>
-              )}
-              <div className="invisible md:visible flex items-center gap-3">
-                <span className="text-sm text-gray-600 dark:text-gray-400">
-                  {user?.name || user?.email}
+          
+          {/* Auth Section */}
+          {user ? (
+            // User is logged in - show email and logout
+            <div className="relative">
+              <button
+                onClick={() => setShowUserMenu(!showUserMenu)}
+                className="flex items-center space-x-2 px-3 py-1.5 text-black dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-md transition duration-300"
+              >
+                <span className="text-sm">👤</span>
+                <span className="text-sm max-w-[150px] truncate">
+                  {user.username || user.email || 'User'}
                 </span>
-                <button
-                  onClick={signOut}
-                  className="px-3 py-1.5 text-sm text-red-600 border border-red-600 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                >
-                  Đăng xuất
-                </button>
-              </div>
-            </>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              
+              {/* Dropdown Menu */}
+              {showUserMenu && (
+                <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50">
+                  <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Đăng nhập với</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                      {user.username || user.email}
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleSignOut}
+                    className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition duration-200"
+                  >
+                    🚪 Đăng xuất
+                  </button>
+                </div>
+              )}
+            </div>
           ) : (
+            // User is not logged in - show login/signup buttons
             <>
               <Link
                 href="/login"

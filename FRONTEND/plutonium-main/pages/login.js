@@ -1,11 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { useAuth } from "../store/authStore";
+import { useAuth } from "../src/contexts/AuthContext";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { signInUser, signOutUser, user } = useAuth();
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -15,7 +16,25 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
-  const { signIn: authSignIn, isAdmin } = useAuth();
+  // Load remembered email on mount
+  useEffect(() => {
+    const rememberedEmail = localStorage.getItem("rememberedEmail");
+    const wasRemembered = localStorage.getItem("rememberMe") === "true";
+    if (rememberedEmail && wasRemembered) {
+      setFormData(prev => ({
+        ...prev,
+        email: rememberedEmail,
+        rememberMe: true,
+      }));
+    }
+  }, []);
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user) {
+      router.push("/books");
+    }
+  }, [user, router]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -23,24 +42,48 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const user = await authSignIn(formData.email, formData.password);
+      // Đăng nhập với Cognito
+      const { isSignedIn, nextStep } = await signInUser(formData.email, formData.password);
       
-      // Check if user is admin
-      const userIsAdmin = user?.groups?.includes('Admins');
-      
-      // Redirect based on role
-      if (router.query.redirect) {
-        // If there's a redirect query, use it
-        router.push(router.query.redirect);
-      } else if (userIsAdmin) {
-        // Admin goes to admin dashboard
-        router.push("/admin/pending");
-      } else {
-        // Regular user goes to books page
+      if (isSignedIn) {
+        // Save email if remember me is checked
+        if (formData.rememberMe) {
+          localStorage.setItem("rememberedEmail", formData.email);
+          localStorage.setItem("rememberMe", "true");
+        } else {
+          localStorage.removeItem("rememberedEmail");
+          localStorage.removeItem("rememberMe");
+        }
+        
+        // Đăng nhập thành công, chuyển đến trang books
         router.push("/books");
+      } else if (nextStep) {
+        // Xử lý các bước tiếp theo nếu cần (vd: MFA, confirm sign up)
+        console.log('Next step:', nextStep);
+        if (nextStep.signInStep === 'CONFIRM_SIGN_UP') {
+          setError("Vui lòng xác thực email của bạn trước khi đăng nhập.");
+        }
       }
     } catch (err) {
-      setError(err.message || "Đăng nhập thất bại. Vui lòng thử lại.");
+      console.error('Login error:', err);
+      // Xử lý các lỗi phổ biến
+      if (err.message && err.message.includes('already a signed in user')) {
+        setError("Đã có người dùng đăng nhập. Đang đăng xuất...");
+        try {
+          await signOutUser();
+          setError("Đã đăng xuất. Vui lòng đăng nhập lại.");
+        } catch (signOutErr) {
+          setError("Lỗi khi đăng xuất. Vui lòng tải lại trang.");
+        }
+      } else if (err.name === 'UserNotFoundException') {
+        setError("Email không tồn tại trong hệ thống.");
+      } else if (err.name === 'NotAuthorizedException') {
+        setError("Email hoặc mật khẩu không đúng.");
+      } else if (err.name === 'UserNotConfirmedException') {
+        setError("Vui lòng xác thực email của bạn trước khi đăng nhập.");
+      } else {
+        setError(err.message || "Đăng nhập thất bại. Vui lòng thử lại.");
+      }
     } finally {
       setLoading(false);
     }
@@ -75,9 +118,28 @@ export default function LoginPage() {
               {/* Error Message */}
               {error && (
                 <div className="p-4 bg-red-50 border border-red-200 rounded-lg dark:bg-red-900/20 dark:border-red-800">
-                  <div className="flex items-center">
-                    <span className="mr-2 text-red-600 dark:text-red-400">⚠️</span>
-                    <p className="text-sm text-red-800 dark:text-red-300">{error}</p>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <span className="mr-2 text-red-600 dark:text-red-400">⚠️</span>
+                      <p className="text-sm text-red-800 dark:text-red-300">{error}</p>
+                    </div>
+                    {error.includes('already a signed in user') || error.includes('Đã có người dùng') ? (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            await signOutUser();
+                            setError("");
+                            window.location.reload();
+                          } catch (err) {
+                            setError("Lỗi khi đăng xuất. Vui lòng tải lại trang.");
+                          }
+                        }}
+                        className="ml-2 px-3 py-1 text-xs font-medium text-white bg-red-600 rounded hover:bg-red-700"
+                      >
+                        Đăng xuất
+                      </button>
+                    ) : null}
                   </div>
                 </div>
               )}
