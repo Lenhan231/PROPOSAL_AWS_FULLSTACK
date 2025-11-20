@@ -1,6 +1,11 @@
 import { useState } from 'react';
 import { useAuth } from '../src/contexts/AuthContext';
 
+// Disable static generation for this page (requires authentication)
+export const config = {
+  unstable_runtimeJS: true,
+};
+
 export default function TestUploadPage() {
   const { user, getIdToken } = useAuth();
   const [log, setLog] = useState([]);

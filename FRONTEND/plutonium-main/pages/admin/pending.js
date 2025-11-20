@@ -3,6 +3,11 @@ import Header from "../../components/Header";
 import Footer from "../../components/Footer";
 import ProtectedRoute from "../../components/ProtectedRoute";
 
+// Disable static generation for this page (requires authentication)
+export const config = {
+  unstable_runtimeJS: true,
+};
+
 export default function AdminPendingPage() {
   // TODO: Replace with real API call using usePendingBooks hook
   const pendingBooks = [

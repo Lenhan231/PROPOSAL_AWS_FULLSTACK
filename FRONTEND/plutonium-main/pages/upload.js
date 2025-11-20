@@ -5,6 +5,11 @@ import Footer from '../components/Footer';
 import { useAuth } from '../src/contexts/AuthContext';
 import { getUploadUrl, uploadToS3 } from '../lib/uploadClient';
 
+// Disable static generation for this page (requires authentication)
+export const config = {
+  unstable_runtimeJS: true,
+};
+
 export default function UploadPage() {
   const { user, getIdToken } = useAuth();
   const [formData, setFormData] = useState({
