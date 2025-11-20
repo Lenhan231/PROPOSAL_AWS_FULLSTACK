@@ -201,52 +201,57 @@ def build_jwt_claims(
     return claims
 
 
-def build_api_gateway_event(
-    method: str = "POST",
-    path: str = "/",
-    body: Dict[str, Any] = None,
-    user_id: str = "user-123",
-    email: str = "user@example.com",
-    groups: list = None,
-) -> Dict[str, Any]:
-    """
-    Build a complete API Gateway HTTP API event for testing.
+@pytest.fixture
+def build_api_gateway_event():
+    """Factory fixture for building API Gateway events."""
+    def _build(
+        method: str = "POST",
+        path: str = "/",
+        body: Dict[str, Any] = None,
+        user_id: str = "user-123",
+        email: str = "user@example.com",
+        groups: list = None,
+    ) -> Dict[str, Any]:
+        """
+        Build a complete API Gateway HTTP API event for testing.
 
-    Args:
-        method: HTTP method
-        path: Request path
-        body: Request body as dictionary
-        user_id: User ID for JWT claims
-        email: User email for JWT claims
-        groups: Optional list of groups for JWT claims
+        Args:
+            method: HTTP method
+            path: Request path
+            body: Request body as dictionary
+            user_id: User ID for JWT claims
+            email: User email for JWT claims
+            groups: Optional list of groups for JWT claims
 
-    Returns:
-        Complete API Gateway event
-    """
-    import json
+        Returns:
+            Complete API Gateway event
+        """
+        import json
 
-    claims = build_jwt_claims(user_id=user_id, email=email, groups=groups)
+        claims = build_jwt_claims(user_id=user_id, email=email, groups=groups)
 
-    event = {
-        "requestContext": {
-            "http": {
-                "method": method,
-                "path": path,
+        event = {
+            "requestContext": {
+                "http": {
+                    "method": method,
+                    "path": path,
+                },
+                "authorizer": {
+                    "jwt": {
+                        "claims": claims,
+                    }
+                },
             },
-            "authorizer": {
-                "jwt": {
-                    "claims": claims,
-                }
-            },
-        },
-        "rawPath": path,
-    }
+            "rawPath": path,
+        }
 
-    if body:
-        event["body"] = json.dumps(body)
-        event["isBase64Encoded"] = False
+        if body:
+            event["body"] = json.dumps(body)
+            event["isBase64Encoded"] = False
 
-    return event
+        return event
+    
+    return _build
 
 
 def generate_mock_cloudfront_signed_url(

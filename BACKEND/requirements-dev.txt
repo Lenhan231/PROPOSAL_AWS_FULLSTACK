@@ -1,3 +1,13 @@
-pytest
-moto[s3,dynamodb]   
-boto3               
+# Development and testing dependencies
+-r requirements.txt
+
+# Testing
+pytest>=7.0.0
+pytest-cov>=4.0.0
+moto>=4.0.0
+python-magic>=0.4.27
+
+# Code quality
+black>=23.0.0
+flake8>=6.0.0
+mypy>=1.0.0
