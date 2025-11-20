@@ -17,6 +17,7 @@ from lib.stack.storage_stack import StorageStack
 from lib.stack.cdn_stack import CdnStack
 from lib.stack.bucket_policy_stack import BucketPolicyStack
 from lib.stack.api_stack import ApiStack
+from lib.stack.monitoring_stack import MonitoringStack
 
 app = cdk.App()
 
@@ -100,9 +101,20 @@ api_stack = ApiStack(
     description="HTTP API + Lambda for Online Library",
 )
 
+# Phase 6: MonitoringStack
+monitoring_stack = MonitoringStack(
+    app,
+    f"{stack_prefix}-Monitoring",
+    api_stack=api_stack,
+    database_stack=database_stack,
+    storage_stack=storage_stack,
+    env=env,
+    description="CloudWatch monitoring and alarms",
+)
+
 
 # Apply tags
-for stack in [cognito_stack, database_stack, storage_stack, cdn_stack, bucket_policy_stack, api_stack]:
+for stack in [cognito_stack, database_stack, storage_stack, cdn_stack, bucket_policy_stack, api_stack, monitoring_stack]:
     cdk.Tags.of(stack).add("Project", "OnlineLibrary")
     cdk.Tags.of(stack).add("Environment", env_name)
     cdk.Tags.of(stack).add("ManagedBy", "CDK")
