@@ -182,6 +182,17 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Lấy ID token (dùng cho API authorization)
+  const getIdToken = async () => {
+    try {
+      const session = await fetchAuthSession();
+      return session.tokens?.idToken?.toString();
+    } catch (err) {
+      console.error('Get ID token error:', err);
+      return null;
+    }
+  };
+
   const value = {
     user,
     loading,
@@ -195,6 +206,7 @@ export const AuthProvider = ({ children }) => {
     confirmForgotPassword,
     changePassword,
     getAccessToken,
+    getIdToken,
     checkUser,
   };
 
