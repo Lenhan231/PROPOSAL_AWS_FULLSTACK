@@ -1,74 +1,130 @@
-"""
-Phase 2-4 - Tasks #6-16: ApiStack
-
-Mục đích: API Gateway + 8 Lambda functions cho business logic
-
-Components:
-- API Gateway HTTP API (không phải REST API - rẻ hơn)
-- JWT Authorizer: Validate token từ Cognito
-- 8 Lambda Functions:
-  * createUploadUrl (Task 6)
-  * validateMimeType (Task 7)
-  * listPendingBooks (Task 8)
-  * approveBook (Task 9)
-  * rejectBook (Task 10)
-  * getReadUrl (Task 11)
-  * searchBooks (Task 12)
-  * getMyUploads (Task 13)
-- IAM Roles: Least privilege cho từng Lambda (Task 16)
-- CORS: Chỉ allow frontend domain
-- Throttling: 1000 req/s burst, 500 req/s steady
-
-Outputs:
-- ApiEndpoint: API Gateway endpoint URL
-- ApiId: API Gateway ID
-
-Dependencies: Cần tất cả stacks trước (Cognito, Database, Storage, CDN)
-"""
-
 from aws_cdk import (
     Stack,
     aws_apigatewayv2 as apigw,
     aws_apigatewayv2_integrations as integrations,
+    aws_apigatewayv2_authorizers as authorizers,
     aws_lambda as _lambda,
+    aws_iam as iam,
+    Duration,
     CfnOutput,
 )
 from constructs import Construct
 
 
 class ApiStack(Stack):
-    """Stack for HTTP API Gateway + Lambda routes"""
+    """Stack for API Gateway and Lambda functions"""
 
-    def __init__(self, scope: Construct, construct_id: str, *, env=None, **kwargs) -> None:
-        super().__init__(scope, construct_id, env=env, **kwargs)
+    def __init__(
+        self,
+        scope: Construct,
+        construct_id: str,
+        cognito_stack=None,
+        database_stack=None,
+        storage_stack=None,
+        cdn_stack=None,
+        **kwargs
+    ) -> None:
+        super().__init__(scope, construct_id, **kwargs)
 
-        # 1) Lambda cho createUploadUrl
-        create_upload_fn = _lambda.Function(
-            self,
-            "CreateUploadUrlFn",
-            runtime=_lambda.Runtime.PYTHON_3_12,
-            handler="handler.handler",            # file.handler
-            code=_lambda.Code.from_asset("lambda/create_upload_url"),
-        )
+        user_pool = cognito_stack.user_pool if cognito_stack else None
+        books_table = database_stack.table if database_stack else None
+        uploads_bucket = storage_stack.uploads_bucket if storage_stack else None
 
-        # 2) HTTP API
+        # HTTP API with CORS
         http_api = apigw.HttpApi(
             self,
             "OnlineLibraryHttpApi",
             api_name="OnlineLibraryApi",
-        )
-
-        # 3) Route: POST /books/upload-url → Lambda
-        http_api.add_routes(
-            path="/books/upload-url",
-            methods=[apigw.HttpMethod.POST],
-            integration=integrations.HttpLambdaIntegration(
-                "CreateUploadUrlIntegration",
-                handler=create_upload_fn,
+            cors_preflight=apigw.CorsPreflightOptions(
+                allow_methods=[
+                    apigw.CorsHttpMethod.GET,
+                    apigw.CorsHttpMethod.POST,
+                    apigw.CorsHttpMethod.PUT,
+                    apigw.CorsHttpMethod.DELETE,
+                ],
+                allow_origins=["*"],
+                allow_headers=["Content-Type", "Authorization"],
+                max_age=Duration.hours(1),
             ),
         )
 
-        # 4) Output endpoint cho FE/console
+        # JWT Authorizer
+        jwt_authorizer = authorizers.HttpUserPoolAuthorizer(
+            "CognitoAuthorizer",
+            user_pool=user_pool,
+            user_pool_clients=[cognito_stack.user_pool_client],
+        ) if user_pool else None
+
+        # Lambda functions
+        lambdas = {}
+
+        # createUploadUrl Lambda
+        create_upload_url_fn = _lambda.Function(
+            self,
+            "CreateUploadUrlFn",
+            runtime=_lambda.Runtime.PYTHON_3_12,
+            handler="handler.handler",
+            code=_lambda.Code.from_asset("lambda/create_upload_url"),
+            environment={
+                "BOOKS_TABLE_NAME": books_table.table_name if books_table else "OnlineLibrary",
+                "UPLOADS_BUCKET_NAME": uploads_bucket.bucket_name if uploads_bucket else "uploads",
+                "UPLOAD_URL_TTL_SECONDS": "900",
+                "MAX_FILE_SIZE_BYTES": str(50 * 1024 * 1024),
+                "ALLOWED_EXTENSIONS": ".pdf,.epub",
+            },
+        )
+        lambdas["createUploadUrl"] = create_upload_url_fn
+
+        # Grant permissions
+        if books_table:
+            books_table.grant_write_data(create_upload_url_fn)
+        if uploads_bucket:
+            uploads_bucket.grant_put(create_upload_url_fn)
+
+        # getReadUrl Lambda
+        get_read_url_fn = _lambda.Function(
+            self,
+            "GetReadUrlFn",
+            runtime=_lambda.Runtime.PYTHON_3_12,
+            handler="handler.handler",
+            code=_lambda.Code.from_asset("lambda/get_read_url"),
+            environment={
+                "BOOKS_TABLE_NAME": books_table.table_name if books_table else "OnlineLibrary",
+                "CLOUDFRONT_DOMAIN": "d123456.cloudfront.net",  # TODO: Get from CDN stack
+                "CLOUDFRONT_KEY_PAIR_ID": "APKAJTEST",  # TODO: Get from secrets
+                "CLOUDFRONT_PRIVATE_KEY": "test-key",  # TODO: Get from secrets
+                "READ_URL_TTL_SECONDS": "3600",
+            },
+        )
+        lambdas["getReadUrl"] = get_read_url_fn
+
+        # Grant permissions
+        if books_table:
+            books_table.grant_read_data(get_read_url_fn)
+
+        # Routes
+        routes = [
+            ("/books/upload-url", apigw.HttpMethod.POST, create_upload_url_fn),
+            ("/books/{bookId}/read-url", apigw.HttpMethod.GET, get_read_url_fn),
+            ("/books/search", apigw.HttpMethod.GET, None),  # TODO
+            ("/books/my-uploads", apigw.HttpMethod.GET, None),  # TODO
+            ("/admin/books/pending", apigw.HttpMethod.GET, None),  # TODO
+            ("/admin/books/{bookId}/approve", apigw.HttpMethod.POST, None),  # TODO
+            ("/admin/books/{bookId}/reject", apigw.HttpMethod.POST, None),  # TODO
+        ]
+
+        for path, method, handler_fn in routes:
+            if handler_fn:
+                http_api.add_routes(
+                    path=path,
+                    methods=[method],
+                    integration=integrations.HttpLambdaIntegration(
+                        f"{path.replace('/', '-')}-integration",
+                        handler=handler_fn,
+                    ),
+                    authorizer=jwt_authorizer,
+                )
+
         CfnOutput(
             self,
             "HttpApiUrl",
@@ -77,6 +133,15 @@ class ApiStack(Stack):
             export_name=f"{construct_id}-HttpApi-Url",
         )
 
-        # expose cho stack khác nếu cần
+        # Lambda outputs
+        for name, fn in lambdas.items():
+            CfnOutput(
+                self,
+                f"{name}FunctionArn",
+                value=fn.function_arn,
+                description=f"{name} Lambda function ARN",
+                export_name=f"{construct_id}-{name}-Arn",
+            )
+
         self.http_api = http_api
-        self.create_upload_fn = create_upload_fn
+        self.lambdas = lambdas

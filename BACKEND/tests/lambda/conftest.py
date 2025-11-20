@@ -1,5 +1,6 @@
 import os
 from typing import Any, Dict
+from unittest.mock import MagicMock, patch
 
 import boto3
 import pytest
@@ -123,6 +124,40 @@ def books_table(moto_backend, aws_region):
 
     return boto3.resource("dynamodb", region_name=aws_region).Table(table_name)
 
+
+@pytest.fixture
+def cloudwatch_logs(moto_backend, aws_region):
+    """
+    Create CloudWatch Logs client for testing structured logging.
+    """
+    logs_client = boto3.client("logs", region_name=aws_region)
+    log_group_name = "/aws/lambda/test"
+
+    logs_client.create_log_group(logGroupName=log_group_name)
+
+    return {
+        "client": logs_client,
+        "log_group_name": log_group_name,
+        "region": aws_region,
+    }
+
+
+@pytest.fixture
+def cloudfront_signer():
+    """
+    Mock CloudFront signer for generating signed URLs.
+
+    Returns a mock that simulates CloudFront signed URL generation.
+    """
+    mock_signer = MagicMock()
+
+    def generate_signed_url(url, date_less_than, private_key_string, key_pair_id):
+        """Mock CloudFront signed URL generation."""
+        return f"{url}?Signature=mock-signature&Key-Pair-Id={key_pair_id}&Policy=mock-policy"
+
+    mock_signer.generate_signed_url = generate_signed_url
+    return mock_signer
+
 def _set_lambda_common_env(
     monkeypatch: pytest.MonkeyPatch,
     aws_region: str,
@@ -141,29 +176,254 @@ def _set_lambda_common_env(
     monkeypatch.setenv("BOOKS_TABLE_NAME", table_name)
 
 
-# Testing function for each lambda
-@pytest.fixture
-def upload_test_context(
-    monkeypatch, aws_region, s3_bucket, books_table
+def build_jwt_claims(
+    user_id: str = "user-123",
+    email: str = "user@example.com",
+    groups: list = None,
 ) -> Dict[str, Any]:
     """
-    High-level context specifically for upload-related Lambdas.
+    Build JWT claims for testing.
 
-    Other tests (validateMimeType, approveBook, etc.) can reuse the
-    lower-level fixtures `s3_bucket` and `books_table` directly.
+    Args:
+        user_id: User ID (sub claim)
+        email: User email
+        groups: Optional list of groups (e.g., ["Admins"])
+
+    Returns:
+        Dictionary with JWT claims
     """
-    _set_lambda_common_env(
-        monkeypatch=monkeypatch,
-        aws_region=aws_region,
-        bucket_name=s3_bucket["bucket_name"],
-        table_name=books_table.table_name,
+    claims = {
+        "sub": user_id,
+        "email": email,
+    }
+    if groups:
+        claims["cognito:groups"] = groups
+    return claims
+
+
+def build_api_gateway_event(
+    method: str = "POST",
+    path: str = "/",
+    body: Dict[str, Any] = None,
+    user_id: str = "user-123",
+    email: str = "user@example.com",
+    groups: list = None,
+) -> Dict[str, Any]:
+    """
+    Build a complete API Gateway HTTP API event for testing.
+
+    Args:
+        method: HTTP method
+        path: Request path
+        body: Request body as dictionary
+        user_id: User ID for JWT claims
+        email: User email for JWT claims
+        groups: Optional list of groups for JWT claims
+
+    Returns:
+        Complete API Gateway event
+    """
+    import json
+
+    claims = build_jwt_claims(user_id=user_id, email=email, groups=groups)
+
+    event = {
+        "requestContext": {
+            "http": {
+                "method": method,
+                "path": path,
+            },
+            "authorizer": {
+                "jwt": {
+                    "claims": claims,
+                }
+            },
+        },
+        "rawPath": path,
+    }
+
+    if body:
+        event["body"] = json.dumps(body)
+        event["isBase64Encoded"] = False
+
+    return event
+
+
+def generate_mock_cloudfront_signed_url(
+    cloudfront_domain: str = "d123456.cloudfront.net",
+    s3_key: str = "public/books/test.pdf",
+    expires_in_hours: int = 1,
+) -> str:
+    """
+    Generate a mock CloudFront signed URL for testing.
+
+    Args:
+        cloudfront_domain: CloudFront domain name
+        s3_key: S3 object key
+        expires_in_hours: URL expiration time in hours
+
+    Returns:
+        Mock signed URL
+    """
+    from datetime import datetime, timedelta, timezone
+
+    expires_at = (datetime.now(timezone.utc) + timedelta(hours=expires_in_hours)).isoformat()
+
+    return (
+        f"https://{cloudfront_domain}/{s3_key}"
+        f"?Signature=mock-signature-{s3_key}"
+        f"&Key-Pair-Id=APKAJTEST"
+        f"&Policy=mock-policy"
+        f"&Expires={expires_at}"
     )
 
-    return {
-        "region": aws_region,
-        "bucket_name": s3_bucket["bucket_name"],
-        "table_name": books_table.table_name,
+
+def put_draft_book_item_for_test(
+    table,
+    book_id: str,
+    file_name: str,
+    file_size: int,
+    title: str,
+    author: str,
+    user_id: str,
+    user_email: str = "test@example.com",
+    description: str = None,
+    s3_key: str = None,
+) -> Dict[str, Any]:
+    """
+    Helper to create a draft book item in DynamoDB for testing.
+
+    Args:
+        table: DynamoDB table resource
+        book_id: Unique book ID
+        file_name: Original file name
+        file_size: File size in bytes
+        title: Book title
+        author: Book author
+        user_id: Uploader user ID
+        user_email: Uploader email
+        description: Optional book description
+        s3_key: Optional S3 key (defaults to uploads/{book_id}/{file_name})
+
+    Returns:
+        Dictionary with created item details
+    """
+    from datetime import datetime, timedelta, timezone
+
+    if s3_key is None:
+        s3_key = f"uploads/{book_id}/{file_name}"
+
+    now = datetime.now(timezone.utc)
+    ttl_seconds = int((now + timedelta(hours=72)).timestamp())
+
+    item = {
+        "PK": f"BOOK#{book_id}",
+        "SK": "METADATA",
+        "bookId": book_id,
+        "title": title,
+        "author": author,
+        "uploaderId": user_id,
+        "uploaderEmail": user_email,
+        "status": "UPLOADING",
+        "fileSize": file_size,
+        "s3Key": s3_key,
+        "ttl": ttl_seconds,
+        "GSI6PK": f"UPLOADER#{user_id}",
+        "GSI6SK": f"BOOK#{book_id}",
     }
+
+    if description:
+        item["description"] = description
+
+    table.put_item(Item=item)
+
+    return item
+
+
+def get_cloudwatch_logs(logs_client, log_group_name: str) -> list:
+    """
+    Retrieve all log events from a CloudWatch log group.
+
+    Args:
+        logs_client: CloudWatch Logs client
+        log_group_name: Log group name
+
+    Returns:
+        List of log events
+    """
+    try:
+        streams = logs_client.describe_log_streams(logGroupName=log_group_name)
+        log_events = []
+
+        for stream in streams.get("logStreams", []):
+            stream_name = stream["logStreamName"]
+            events = logs_client.get_log_events(
+                logGroupName=log_group_name,
+                logStreamName=stream_name,
+            )
+            log_events.extend(events.get("events", []))
+
+        return log_events
+    except Exception:
+        return []
+
+
+def verify_structured_log(
+    log_message: str,
+    expected_fields: Dict[str, Any],
+) -> bool:
+    """
+    Verify that a log message contains expected structured fields.
+
+    Args:
+        log_message: Log message (should be JSON)
+        expected_fields: Dictionary of expected field names and values
+
+    Returns:
+        True if all expected fields are present with correct values
+    """
+    import json
+
+    try:
+        log_data = json.loads(log_message)
+        for key, value in expected_fields.items():
+            if log_data.get(key) != value:
+                return False
+        return True
+    except (json.JSONDecodeError, TypeError):
+        return False
+
+
+# Re-export production DynamoDB utilities for use in tests
+# These are the same functions used by Lambda handlers
+def get_dynamodb_table_for_test(table_name: str):
+    """
+    Get DynamoDB table resource for testing.
+
+    This is a wrapper around the production function for convenience.
+    """
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+    from shared.dynamodb import get_dynamodb_table
+
+    return get_dynamodb_table(table_name)
+
+
+def get_book_item_for_test(table_name: str, book_id: str) -> Dict[str, Any]:
+    """
+    Get book item from DynamoDB for testing.
+
+    This is a wrapper around the production function for convenience.
+    """
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+    from shared.dynamodb import get_book_item
+
+    return get_book_item(table_name, book_id)
 
 
 

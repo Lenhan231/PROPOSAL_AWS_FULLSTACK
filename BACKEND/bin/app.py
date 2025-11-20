@@ -60,17 +60,21 @@ cdn_stack = CdnStack(
     description="CloudFront CDN for serving books"
 )
 
-# Phase 5: Apiateway
+# Phase 5: ApiStack
 api_stack = ApiStack(
     app,
     f"{stack_prefix}-Api",
+    cognito_stack=cognito_stack,
+    database_stack=database_stack,
+    storage_stack=storage_stack,
+    cdn_stack=cdn_stack,
     env=env,
     description="HTTP API + Lambda for Online Library",
 )
 
 
 # Apply tags
-for stack in [cognito_stack, database_stack, storage_stack, cdn_stack]:
+for stack in [cognito_stack, database_stack, storage_stack, cdn_stack, api_stack]:
     cdk.Tags.of(stack).add("Project", "OnlineLibrary")
     cdk.Tags.of(stack).add("Environment", env_name)
     cdk.Tags.of(stack).add("ManagedBy", "CDK")

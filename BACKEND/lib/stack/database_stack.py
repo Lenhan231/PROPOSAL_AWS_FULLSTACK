@@ -119,3 +119,6 @@ class DatabaseStack(Stack):
             description="DynamoDB main table ARN",
             export_name=f"{construct_id}-MainTable-Arn",
         )
+
+        # Store table reference for other stacks
+        self.table = table

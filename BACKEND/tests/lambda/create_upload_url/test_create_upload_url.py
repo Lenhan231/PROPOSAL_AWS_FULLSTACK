@@ -1,34 +1,53 @@
 import json
+import sys
+from pathlib import Path
+from typing import Any, Dict
 
 import boto3
+import pytest
+
+# Add lambda directory to path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from create_upload_url.handler import handler
 
-def test_create_upload_url_happy_path(upload_test_context):
+
+@pytest.fixture
+def upload_test_context(monkeypatch, aws_region, s3_bucket, books_table):
+    """
+    High-level context specifically for upload-related Lambdas.
+
+    Sets up environment variables and returns region, bucket, and table info.
+    """
+    monkeypatch.setenv("AWS_REGION", aws_region)
+    monkeypatch.setenv("UPLOAD_URL_TTL_SECONDS", "900")
+    monkeypatch.setenv("UPLOADS_BUCKET_NAME", s3_bucket["bucket_name"])
+    monkeypatch.setenv("BOOKS_TABLE_NAME", books_table.table_name)
+
+    return {
+        "region": aws_region,
+        "bucket_name": s3_bucket["bucket_name"],
+        "table_name": books_table.table_name,
+    }
+
+
+def test_create_upload_url_happy_path(upload_test_context, build_api_gateway_event):
     region = upload_test_context["region"]
     table_name = upload_test_context["table_name"]
 
-    event = {
-        "requestContext": {
-            "authorizer": {
-                "jwt": {
-                    "claims": {
-                        "sub": "user-123",
-                        "email": "user@example.com",
-                    }
-                }
-            }
+    event = build_api_gateway_event(
+        method="POST",
+        path="/books/upload-url",
+        body={
+            "fileName": "book.pdf",
+            "fileSize": 1024,
+            "title": "AWS Serverless Guide",
+            "author": "John Doe",
+            "description": "Test book",
         },
-        "body": json.dumps(
-            {
-                "fileName": "book.pdf",
-                "fileSize": 1024,
-                "title": "AWS Serverless Guide",
-                "author": "John Doe",
-                "description": "Test book",
-            }
-        ),
-    }
+        user_id="user-123",
+        email="user@example.com",
+    )
 
     response = handler(event, context={})
 
