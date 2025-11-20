@@ -30,8 +30,6 @@ class ApiStack(Stack):
         books_table = database_stack.table if database_stack else None
         uploads_bucket = storage_stack.bucket if storage_stack else None
         cloudfront_domain = cdn_stack.distribution_domain if cdn_stack else "d123456.cloudfront.net"
-        cf_key_pair_id = cdn_stack.cf_key_pair_id if cdn_stack else "APKAJTEST"
-        cf_private_key_secret = cdn_stack.cf_private_key_secret if cdn_stack else None
 
         # HTTP API with CORS
         http_api = apigw.HttpApi(
@@ -51,14 +49,15 @@ class ApiStack(Stack):
             ),
         )
 
-        # JWT Authorizer with Cognito
-        # Note: API Gateway HTTP API will validate JWT from Cognito
-        # Lambda handlers extract claims from event.requestContext.authorizer.jwt.claims
+        # JWT Authorizer with Cognito at API Gateway level
         jwt_authorizer = None
         if user_pool and cognito_stack:
-            # For now, routes don't require authorizer at API Gateway level
-            # JWT validation happens in Lambda handlers
-            pass
+            # Create JWT authorizer using Cognito User Pool
+            jwt_authorizer = authorizers.HttpJwtAuthorizer(
+                id="CognitoAuthorizer",
+                jwt_issuer=f"https://cognito-idp.{self.region}.amazonaws.com/{user_pool.user_pool_id}",
+                jwt_audience=[cognito_stack.user_pool_client.user_pool_client_id],
+            )
 
         # Lambda functions
         lambdas = {}
@@ -68,8 +67,13 @@ class ApiStack(Stack):
             self,
             "CreateUploadUrlFn",
             runtime=_lambda.Runtime.PYTHON_3_12,
-            handler="handler.handler",
-            code=_lambda.Code.from_asset("./lambda/create_upload_url"),
+            handler="create_upload_url.handler.handler",
+            code=_lambda.Code.from_asset(
+                "./lambda",
+                exclude=["**/__pycache__", "*.pyc", ".pytest_cache", "tests"],
+            ),
+            timeout=Duration.seconds(30),
+            memory_size=256,
             environment={
                 "BOOKS_TABLE_NAME": books_table.table_name if books_table else "OnlineLibrary",
                 "UPLOADS_BUCKET_NAME": uploads_bucket.bucket_name if uploads_bucket else "uploads",
@@ -91,13 +95,18 @@ class ApiStack(Stack):
             self,
             "GetReadUrlFn",
             runtime=_lambda.Runtime.PYTHON_3_12,
-            handler="handler.handler",
-            code=_lambda.Code.from_asset("./lambda/get_read_url"),
+            handler="get_read_url.handler.handler",
+            code=_lambda.Code.from_asset(
+                "./lambda",
+                exclude=["**/__pycache__", "*.pyc", ".pytest_cache", "tests"],
+            ),
+            timeout=Duration.seconds(30),
+            memory_size=256,
             environment={
                 "BOOKS_TABLE_NAME": books_table.table_name if books_table else "OnlineLibrary",
                 "CLOUDFRONT_DOMAIN": cloudfront_domain,
-                "CLOUDFRONT_KEY_PAIR_ID": cf_key_pair_id,
-                "CLOUDFRONT_PRIVATE_KEY_SECRET_ARN": cf_private_key_secret.secret_arn if cf_private_key_secret else "",
+                "CLOUDFRONT_KEY_PAIR_ID": "APKAJTEST",  # TODO: Set from AWS CloudFront console
+                "CLOUDFRONT_PRIVATE_KEY": "test-key",  # TODO: Set from AWS Secrets Manager
                 "READ_URL_TTL_SECONDS": "3600",
             },
         )
@@ -106,8 +115,6 @@ class ApiStack(Stack):
         # Grant permissions
         if books_table:
             books_table.grant_read_data(get_read_url_fn)
-        if cf_private_key_secret:
-            cf_private_key_secret.grant_read(get_read_url_fn)
 
         # Routes
         routes = [
@@ -129,7 +136,7 @@ class ApiStack(Stack):
                         f"{path.replace('/', '-')}-integration",
                         handler=handler_fn,
                     ),
-                    authorizer=jwt_authorizer,
+                    authorizer=jwt_authorizer if jwt_authorizer else None,
                 )
 
         CfnOutput(

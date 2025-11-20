@@ -2,22 +2,24 @@ from aws_cdk import (
     Stack,
     aws_cloudfront as cloudfront,
     aws_s3 as s3,
-    aws_iam as iam,
-    aws_secretsmanager as secrets,
-    SecretValue,
     CfnOutput,
+    Fn,
 )
 from constructs import Construct
-import base64
 
 
 class CdnStack(Stack):
     """Stack for CloudFront distribution"""
 
-    def __init__(self, scope: Construct, construct_id: str, storage_stack, **kwargs) -> None:
+    def __init__(self, scope: Construct, construct_id: str, bucket_name=None, storage_stack_name=None, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
-        bucket = storage_stack.bucket  # nhận bucket từ StorageStack
+        # Get bucket name from CloudFormation export if not provided
+        if not bucket_name and storage_stack_name:
+            bucket_name = Fn.import_value(f"{storage_stack_name}-Bucket-Name")
+        
+        # Import existing bucket by name to avoid cyclic dependency
+        bucket = s3.Bucket.from_bucket_name(self, "S3Bucket", bucket_name) if bucket_name else None
 
         # 1) OAC for CloudFront -> S3
         oac = cloudfront.CfnOriginAccessControl(
@@ -59,16 +61,7 @@ class CdnStack(Stack):
             )
         )
 
-        # 3) Bucket policy – allow CloudFront Distribution ARN
-        bucket.add_to_resource_policy(
-            iam.PolicyStatement(
-                actions=["s3:GetObject"],
-                resources=[bucket.arn_for_objects("*")],
-                principals=[iam.ServicePrincipal("cloudfront.amazonaws.com")],
-            )
-        )
-
-        # 4) Output
+        # 3) Output
         CfnOutput(
             self,
             "DistributionDomain",
@@ -82,47 +75,6 @@ class CdnStack(Stack):
             export_name=f"{construct_id}-Distribution-Id",
         )
 
-        # 5) CloudFront Key Pair for Signed URLs
-        # Create secret for CloudFront private key
-        # User must manually:
-        # 1. Generate key pair in AWS CloudFront console
-        # 2. Store private key in this secret
-        cf_key_pair_secret = secrets.Secret(
-            self,
-            "CloudFrontKeyPair",
-            secret_name="cloudfront/key-pair",
-            description="CloudFront key pair for signed URLs - populate with real key",
-            secret_string_value=SecretValue.unsafe_plain_text(
-                base64.b64encode(b"PLACEHOLDER_KEY_PAIR_ID").decode()
-            ),
-        )
-
-        # 6) Output CloudFront credentials
-        CfnOutput(
-            self,
-            "CloudFrontKeyPairId",
-            value="PLACEHOLDER_KEY_PAIR_ID",
-            description="CloudFront Key Pair ID - replace with real ID from AWS console",
-            export_name=f"{construct_id}-CloudFront-KeyPairId",
-        )
-
-        CfnOutput(
-            self,
-            "CloudFrontPrivateKeySecret",
-            value=cf_key_pair_secret.secret_arn,
-            description="ARN of secret containing CloudFront private key - populate with real key",
-            export_name=f"{construct_id}-CloudFront-PrivateKeySecret",
-        )
-
-        CfnOutput(
-            self,
-            "CloudFrontKeyPairSetupInstructions",
-            value="1. Go to AWS CloudFront console > Key pairs\n2. Create new key pair\n3. Store private key in Secrets Manager secret: " + cf_key_pair_secret.secret_name,
-            description="Instructions for setting up CloudFront key pair",
-        )
-
         # Export for other stacks
         self.distribution = distribution
         self.distribution_domain = distribution.attr_domain_name
-        self.cf_key_pair_id = "PLACEHOLDER_KEY_PAIR_ID"
-        self.cf_private_key_secret = cf_key_pair_secret

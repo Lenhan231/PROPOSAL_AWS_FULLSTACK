@@ -33,8 +33,16 @@ from constructs import Construct
 class StorageStack(Stack):
     """Stack for S3 bucket"""
 
-    def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
+    def __init__(self, scope: Construct, construct_id: str, cors_origins=None, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
+        
+        # Default CORS origins for dev + Amplify (can be overridden)
+        if cors_origins is None:
+            cors_origins = [
+                "http://localhost:3000",
+                "http://localhost:3001",
+                "https://fe-ken.d19yocdajp91pq.amplifyapp.com"
+            ]
 
         bucket = s3.Bucket(
             self,
@@ -42,7 +50,6 @@ class StorageStack(Stack):
             versioned=True,
             block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
             encryption=s3.BucketEncryption.S3_MANAGED,
-            enforce_ssl=True,
             removal_policy=RemovalPolicy.DESTROY,  # DEV: DESTROY, PROD: RETAIN
             auto_delete_objects=True,
         )
@@ -54,12 +61,14 @@ class StorageStack(Stack):
             expiration=Duration.hours(72),
         )
 
-        # Placeholder event — sẽ connect Lambda sau
-        # bucket.add_event_notification(
-        #     s3.EventType.OBJECT_CREATED,
-        #     s3n.LambdaDestination(lambda_fn),
-        #     prefix="uploads/"
-        # )
+        # === CORS: Allow browser uploads from frontend ===
+        bucket.add_cors_rule(
+            allowed_methods=[s3.HttpMethods.GET, s3.HttpMethods.PUT, s3.HttpMethods.POST],
+            allowed_origins=cors_origins,
+            allowed_headers=["*"],
+            exposed_headers=["ETag", "x-amz-version-id"],
+            max_age=3600,  # 1 hour in seconds
+        )
 
         # === OUTPUTS ===
         CfnOutput(

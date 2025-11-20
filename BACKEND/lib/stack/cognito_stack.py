@@ -54,6 +54,7 @@ class CognitoStack(Stack):
             auth_flows=cognito.AuthFlow(
                 user_password=True,      # Cho phép username/password auth
                 user_srp=True,           # Secure Remote Password protocol
+                admin_user_password=True,  # Allow ADMIN_NO_SRP_AUTH for testing
             ),
             generate_secret=False,       # Public client (frontend không cần secret)
             id_token_validity=Duration.hours(1),

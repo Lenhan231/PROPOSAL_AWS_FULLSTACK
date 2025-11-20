@@ -179,6 +179,8 @@ INTERNAL_ERROR
 1. Extract userId from JWT claims
 2. Validate file size (≤ 50MB) and extension (.pdf, .epub)
 3. Generate bookId (UUID)
+aws cognito-idp admin-get-user --user-pool-id ap-southeast-1_SKkoJraD3 --username testuser@example.com 2>&1 | grep -i status
+
 4. Create Presigned PUT URL (TTL 15 min)
 5. **Create Book Metadata draft trong DynamoDB** với:
    - `status=UPLOADING`
@@ -762,7 +764,7 @@ Mỗi Lambda có role riêng với quyền tối thiểu
 cdk/
 ├── bin/
 │   └── app.py                 # CDK app entry point
-├── lib/
+├── lib/stack/
 │   ├── cognito_stack.py       # Cognito User Pool
 │   ├── database_stack.py      # DynamoDB table
 │   ├── storage_stack.py       # S3 buckets

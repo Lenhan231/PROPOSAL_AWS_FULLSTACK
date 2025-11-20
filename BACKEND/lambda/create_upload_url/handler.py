@@ -17,17 +17,13 @@ Environment variables expected:
 import base64
 import json
 import os
-import sys
 import uuid
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any, Dict, Optional
 
 import boto3
 
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
+# Import from shared utilities (parent directory)
 from shared.error_handler import (
     lambda_handler_wrapper,
     api_response,

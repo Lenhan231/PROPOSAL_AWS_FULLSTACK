@@ -14,19 +14,13 @@ Environment variables expected:
 """
 
 import base64
-import json
 import os
-import sys
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 from typing import Any, Dict, Optional
 
-import boto3
 from botocore.signers import CloudFrontSigner
 
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
+# Import from shared utilities (parent directory)
 from shared.error_handler import (
     lambda_handler_wrapper,
     api_response,
@@ -39,40 +33,6 @@ from shared.logger import get_logger
 from shared.dynamodb import get_book_item
 
 logger = get_logger(__name__)
-
-
-def _get_cloudfront_private_key() -> str:
-    """
-    Retrieve CloudFront private key from AWS Secrets Manager.
-
-    Returns:
-        Base64-encoded private key
-
-    Raises:
-        ApiError: If secret cannot be retrieved
-    """
-    secret_arn = os.getenv("CLOUDFRONT_PRIVATE_KEY_SECRET_ARN")
-    if not secret_arn:
-        raise ApiError(
-            error_code=ErrorCode.INTERNAL_ERROR,
-            message="CloudFront private key not configured",
-        )
-
-    try:
-        region = os.getenv("AWS_REGION") or "ap-southeast-1"
-        secrets_client = boto3.client("secretsmanager", region_name=region)
-        response = secrets_client.get_secret_value(SecretId=secret_arn)
-
-        # Secret value is base64-encoded private key
-        if "SecretString" in response:
-            return response["SecretString"]
-        else:
-            return base64.b64decode(response["SecretBinary"]).decode("utf-8")
-    except Exception as err:
-        raise ApiError(
-            error_code=ErrorCode.INTERNAL_ERROR,
-            message="Failed to retrieve CloudFront private key",
-        )
 
 
 def _validate_book_approved(book: Optional[Dict[str, Any]]) -> Dict[str, Any]:

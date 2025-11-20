@@ -15,12 +15,25 @@ from lib.stack.cognito_stack import CognitoStack
 from lib.stack.database_stack import DatabaseStack
 from lib.stack.storage_stack import StorageStack
 from lib.stack.cdn_stack import CdnStack
+from lib.stack.bucket_policy_stack import BucketPolicyStack
 from lib.stack.api_stack import ApiStack
 
 app = cdk.App()
 
 # Get environment from context or default to 'dev'
 env_name = app.node.try_get_context("env") or "dev"
+
+# Get CORS origins from context
+# Priority: CLI context > cdk.context.json > defaults
+cors_origins_str = app.node.try_get_context("cors_origins")
+if not cors_origins_str:
+    # Try to get from environment-specific config in cdk.context.json
+    env_config = app.node.try_get_context(env_name) or {}
+    cors_origins_str = env_config.get("cors_origins")
+
+cors_origins = None
+if cors_origins_str:
+    cors_origins = [origin.strip() for origin in cors_origins_str.split(",")]
 
 # AWS environment configuration
 env = cdk.Environment(
@@ -51,6 +64,7 @@ database_stack = DatabaseStack(
 storage_stack = StorageStack(
     app,
     f"{stack_prefix}-Storage",
+    cors_origins=cors_origins,
     env=env,
     description="S3 bucket for file uploads"
 )
@@ -59,9 +73,19 @@ storage_stack = StorageStack(
 cdn_stack = CdnStack(
     app,
     f"{stack_prefix}-Cdn",
-    storage_stack=storage_stack,
+    storage_stack_name=f"{stack_prefix}-Storage",
     env=env,
     description="CloudFront CDN for serving books"
+)
+
+# Phase 4b: BucketPolicyStack
+bucket_policy_stack = BucketPolicyStack(
+    app,
+    f"{stack_prefix}-BucketPolicy",
+    storage_stack_name=f"{stack_prefix}-Storage",
+    cdn_stack_name=f"{stack_prefix}-Cdn",
+    env=env,
+    description="Bucket policies for S3 and CloudFront"
 )
 
 # Phase 5: ApiStack
@@ -78,7 +102,7 @@ api_stack = ApiStack(
 
 
 # Apply tags
-for stack in [cognito_stack, database_stack, storage_stack, cdn_stack, api_stack]:
+for stack in [cognito_stack, database_stack, storage_stack, cdn_stack, bucket_policy_stack, api_stack]:
     cdk.Tags.of(stack).add("Project", "OnlineLibrary")
     cdk.Tags.of(stack).add("Environment", env_name)
     cdk.Tags.of(stack).add("ManagedBy", "CDK")
