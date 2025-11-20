@@ -84,9 +84,21 @@ export async function uploadToS3(uploadUrl, file, options = {}) {
 				};
 				xhr.onload = () => {
 					if (xhr.status >= 200 && xhr.status < 300) return resolve();
-					return reject(new Error(`S3 upload failed: ${xhr.status} ${xhr.statusText}`));
+					const error = new Error(`S3 upload failed: ${xhr.status} ${xhr.statusText}`);
+					error.status = xhr.status;
+					error.response = xhr.responseText;
+					console.error('XHR upload failed:', { status: xhr.status, statusText: xhr.statusText, response: xhr.responseText });
+					return reject(error);
 				};
-				xhr.onerror = () => reject(new Error('S3 upload network error'));
+				xhr.onerror = (e) => {
+					console.error('XHR network error event:', e);
+					console.error('XHR details:', { readyState: xhr.readyState, status: xhr.status, statusText: xhr.statusText });
+					reject(new Error('S3 upload network error - likely CORS or network issue. Check browser console for details.'));
+				};
+				xhr.ontimeout = () => {
+					console.error('XHR timeout');
+					reject(new Error('S3 upload timeout'));
+				};
 				xhr.send(file);
 			} catch (err) {
 				reject(err);

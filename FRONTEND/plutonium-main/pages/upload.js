@@ -68,6 +68,7 @@ export default function UploadPage() {
       }
 
       console.log('Using ID token for upload request');
+      console.log('File details:', { name: file.name, size: file.size, type: file.type });
 
       // Step 1: Request presigned URL from backend
       const { uploadUrl, bookId } = await getUploadUrl(idToken, {
@@ -78,7 +79,7 @@ export default function UploadPage() {
         fileSize: file.size,
       });
 
-      console.log('Got presigned URL, uploading to S3...', { bookId });
+      console.log('Got presigned URL, uploading to S3...', { bookId, uploadUrl: uploadUrl.substring(0, 100) + '...' });
 
       // Step 2: PUT file to S3 via presigned URL with progress
       await uploadToS3(uploadUrl, file, {
