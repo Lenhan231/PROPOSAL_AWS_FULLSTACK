@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 import sys
+import os
 from pathlib import Path
+
+# Change to BACKEND directory
+os.chdir(Path(__file__).parent.parent)
 
 # Add parent directory to Python path
 sys.path.insert(0, str(Path(__file__).parent.parent))
