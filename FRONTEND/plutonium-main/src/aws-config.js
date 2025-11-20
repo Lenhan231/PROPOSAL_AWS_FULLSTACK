@@ -7,8 +7,8 @@ const awsConfig = {
         oauth: {
           domain: (process.env.NEXT_PUBLIC_COGNITO_DOMAIN || '').replace('https://', ''),
           scopes: ['openid', 'email', 'profile'],
-          redirectSignIn: [process.env.NEXT_PUBLIC_REDIRECT_URL || 'http://localhost:3000'],
-          redirectSignOut: [process.env.NEXT_PUBLIC_REDIRECT_URL || 'http://localhost:3000'],
+          redirectSignIn: [process.env.NEXT_PUBLIC_REDIRECT_URL],
+          redirectSignOut: [process.env.NEXT_PUBLIC_REDIRECT_URL],
           responseType: 'code',
         },
       },
