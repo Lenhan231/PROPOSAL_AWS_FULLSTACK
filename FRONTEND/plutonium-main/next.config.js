@@ -1,15 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Disable static export to support client-side features like AuthContext
-  output: 'standalone',
-  
   // Keep existing optimizations
   reactStrictMode: true,
-  swcMinify: true,
   
   // Allow images from S3 and external sources
   images: {
-    domains: ['onlinelibrary-dev-storage-s3bucket07682993-iyl5cqgqae9t.s3.amazonaws.com'],
     remotePatterns: [
       {
         protocol: 'https',
@@ -20,6 +15,11 @@ const nextConfig = {
         hostname: '**.cloudfront.net',
       },
     ],
+  },
+  
+  // Disable static optimization for pages that use AuthContext
+  experimental: {
+    runtime: 'nodejs',
   },
 };
 

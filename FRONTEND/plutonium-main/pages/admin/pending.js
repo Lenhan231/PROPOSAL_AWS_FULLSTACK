@@ -211,3 +211,9 @@ function PendingBookCard({ book, onApprove, onReject }) {
     </div>
   );
 }
+// Force server-side rendering to avoid static export errors with AuthContext
+export async function getServerSideProps() {
+  return {
+    props: {},
+  };
+}
