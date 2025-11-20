@@ -2,9 +2,11 @@ import { useState } from "react";
 import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
+import { useAuth } from "../store/authStore";
 
 export default function SignupPage() {
   const router = useRouter();
+  const { signUp: authSignUp } = useAuth();
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -82,15 +84,11 @@ export default function SignupPage() {
     setLoading(true);
 
     try {
-      // TODO: Implement Cognito signup
-      // await Auth.signUp({
-      //   username: formData.email,
-      //   password: formData.password,
-      //   attributes: { name: formData.name }
-      // });
-
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      await authSignUp({
+        email: formData.email,
+        password: formData.password,
+        name: formData.name,
+      });
 
       // Show success message and redirect
       alert("Đăng ký thành công! Vui lòng kiểm tra email để xác thực tài khoản.");

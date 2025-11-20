@@ -2,6 +2,7 @@ import { useState } from "react";
 import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
+import { useAuth } from "../store/authStore";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -14,20 +15,30 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
+  const { signIn: authSignIn, isAdmin } = useAuth();
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
     setLoading(true);
 
     try {
-      // TODO: Implement Cognito login
-      // await Auth.signIn(formData.email, formData.password);
+      const user = await authSignIn(formData.email, formData.password);
       
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Check if user is admin
+      const userIsAdmin = user?.groups?.includes('Admins');
       
-      // Redirect to books page
-      router.push("/books");
+      // Redirect based on role
+      if (router.query.redirect) {
+        // If there's a redirect query, use it
+        router.push(router.query.redirect);
+      } else if (userIsAdmin) {
+        // Admin goes to admin dashboard
+        router.push("/admin/pending");
+      } else {
+        // Regular user goes to books page
+        router.push("/books");
+      }
     } catch (err) {
       setError(err.message || "Đăng nhập thất bại. Vui lòng thử lại.");
     } finally {

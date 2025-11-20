@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
 import { useTheme } from "next-themes";
 import Link from "next/link";
+import { useAuth } from "../store/authStore";
 
 export default function Header() {
   const [navbarOpen, setNavbarOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const { theme, setTheme } = useTheme();
+  const { user, isAuthenticated, isAdmin, signOut } = useAuth();
 
   // When mounted on client, now we can show the UI
   useEffect(() => setMounted(true), []);
@@ -92,18 +94,44 @@ export default function Header() {
               </svg>
             )}
           </button>
-          <Link
-            href="/login"
-            className="invisible dark:hover:border-blue-500 hover:shadow-md transition duration-300 mr-4 text-black border px-3 py-1.5 rounded dark:text-gray-300 md:visible"
-          >
-            Đăng nhập
-          </Link>
-          <Link
-            href="/signup"
-            className="invisible md:visible px-3 py-1.5 transition-colors hover:bg-blue-700 text-white bg-blue-600 rounded"
-          >
-            Đăng ký
-          </Link>
+          {isAuthenticated ? (
+            <>
+              {isAdmin && (
+                <Link
+                  href="/admin/pending"
+                  className="invisible md:visible mr-4 text-black dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition duration-300"
+                >
+                  Admin
+                </Link>
+              )}
+              <div className="invisible md:visible flex items-center gap-3">
+                <span className="text-sm text-gray-600 dark:text-gray-400">
+                  {user?.name || user?.email}
+                </span>
+                <button
+                  onClick={signOut}
+                  className="px-3 py-1.5 text-sm text-red-600 border border-red-600 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                >
+                  Đăng xuất
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <Link
+                href="/login"
+                className="invisible dark:hover:border-blue-500 hover:shadow-md transition duration-300 mr-4 text-black border px-3 py-1.5 rounded dark:text-gray-300 md:visible"
+              >
+                Đăng nhập
+              </Link>
+              <Link
+                href="/signup"
+                className="invisible md:visible px-3 py-1.5 transition-colors hover:bg-blue-700 text-white bg-blue-600 rounded"
+              >
+                Đăng ký
+              </Link>
+            </>
+          )}
         </div>
       </div>
     </header>
