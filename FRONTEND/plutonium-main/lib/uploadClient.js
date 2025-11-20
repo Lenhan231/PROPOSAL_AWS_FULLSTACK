@@ -74,9 +74,13 @@ export async function uploadToS3(uploadUrl, file, options = {}) {
 	if (options.onProgress && typeof window !== 'undefined' && window.XMLHttpRequest) {
 		return new Promise((resolve, reject) => {
 			try {
+				// Convert to Blob without type to prevent browser from auto-setting Content-Type
+				const fileBlob = file instanceof Blob ? new Blob([file], { type: '' }) : file;
+				
 				const xhr = new XMLHttpRequest();
 				xhr.open('PUT', uploadUrl, true);
-				// Do NOT set Content-Type header to avoid signature mismatch (infra note)
+				// CRITICAL: Do NOT set Content-Type header to avoid signature mismatch
+				// Backend presigned URL does not include Content-Type in signature
 
 				xhr.upload.onprogress = (e) => {
 					if (!e.lengthComputable) return;
@@ -99,7 +103,7 @@ export async function uploadToS3(uploadUrl, file, options = {}) {
 					console.error('XHR timeout');
 					reject(new Error('S3 upload timeout'));
 				};
-				xhr.send(file);
+				xhr.send(fileBlob);
 			} catch (err) {
 				reject(err);
 			}
@@ -107,10 +111,14 @@ export async function uploadToS3(uploadUrl, file, options = {}) {
 	}
 
 	// simple fetch-based upload
+	// IMPORTANT: Convert to Blob without type to prevent browser from auto-setting Content-Type
+	const fileBlob = file instanceof Blob ? new Blob([file], { type: '' }) : file;
+	
 	const res = await fetch(uploadUrl, {
 		method: 'PUT',
-		// intentionally omit headers like Content-Type
-		body: file,
+		// Explicitly set empty headers to prevent Content-Type
+		headers: {},
+		body: fileBlob,
 	});
 	if (!res.ok) {
 		const text = await res.text().catch(() => '');
