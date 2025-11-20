@@ -1,5 +1,7 @@
 import { useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useUIStore } from '../store/uiStore';
+import { notificationSlideIn } from '../lib/animations';
 
 export default function ToastContainer() {
   const toasts = useUIStore((state) => state.toasts);
@@ -7,9 +9,11 @@ export default function ToastContainer() {
 
   return (
     <div className="fixed top-4 right-4 z-50 space-y-2">
-      {toasts.map((toast) => (
-        <Toast key={toast.id} toast={toast} onClose={() => removeToast(toast.id)} />
-      ))}
+      <AnimatePresence>
+        {toasts.map((toast) => (
+          <Toast key={toast.id} toast={toast} onClose={() => removeToast(toast.id)} />
+        ))}
+      </AnimatePresence>
     </div>
   );
 }
@@ -73,19 +77,34 @@ function Toast({ toast, onClose }) {
   };
 
   return (
-    <div className={getToastStyles()}>
-      <span className="mr-3 text-xl">{getIcon()}</span>
+    <motion.div
+      variants={notificationSlideIn}
+      initial="hidden"
+      animate="visible"
+      exit="exit"
+      className={getToastStyles()}
+    >
+      <motion.span 
+        className="mr-3 text-xl"
+        initial={{ scale: 0 }}
+        animate={{ scale: 1 }}
+        transition={{ delay: 0.1, type: "spring", stiffness: 200 }}
+      >
+        {getIcon()}
+      </motion.span>
       <p className={`flex-1 text-sm font-medium ${getTextColor()}`}>
         {toast.message}
       </p>
-      <button
+      <motion.button
         onClick={onClose}
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.9 }}
         className="ml-3 text-gray-400 transition-colors hover:text-gray-600 dark:hover:text-gray-200"
       >
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
         </svg>
-      </button>
-    </div>
+      </motion.button>
+    </motion.div>
   );
 }
