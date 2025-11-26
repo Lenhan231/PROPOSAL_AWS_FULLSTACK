@@ -233,6 +233,13 @@ export default function LoginPage() {
               </div>
             </div>
 
+            {/* Forgot Password Link */}
+            <div className="text-center mb-4">
+              <Link href="/forgot-password" className="text-sm text-blue-600 transition-colors hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300">
+                Quên mật khẩu?
+              </Link>
+            </div>
+
             {/* Sign Up Link */}
             <div className="text-center">
               <p className="text-sm text-gray-600 dark:text-gray-400">
