@@ -61,7 +61,7 @@ def _parse_body(event: Dict[str, Any]) -> Dict[str, Any]:
     try:
         return json.loads(body) if body else {}
     except json.JSONDecodeError:
-        raise ApiError(
+        raise ApiError( 
             error_code=ErrorCode.INVALID_REQUEST,
             message="Request body must be valid JSON",
         )
@@ -102,9 +102,7 @@ def _build_s3_key(book_id: str, file_name: str) -> str:
     return f"uploads/{book_id}/{file_name}"
 
 
-def _create_presigned_put_url(
-    bucket_name: str, object_key: str, expires_in: int
-) -> str:
+def _create_presigned_put_url(bucket_name, object_key, expires_in):
     region = os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION") or "ap-southeast-1"
     s3 = boto3.client("s3", region_name=region)
     return s3.generate_presigned_url(
@@ -112,7 +110,6 @@ def _create_presigned_put_url(
         Params={"Bucket": bucket_name, "Key": object_key},
         ExpiresIn=expires_in,
     )
-
 
 def _get_env_or_error(name: str) -> str:
     """Get environment variable or raise error if not set."""

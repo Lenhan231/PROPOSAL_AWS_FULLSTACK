@@ -1,3 +1,5 @@
+import json
+
 from aws_cdk import (
     Stack,
     aws_apigatewayv2 as apigw,
@@ -5,6 +7,8 @@ from aws_cdk import (
     aws_apigatewayv2_authorizers as authorizers,
     aws_lambda as _lambda,
     aws_iam as iam,
+    aws_secretsmanager as secrets,
+    aws_ssm as ssm,
     Duration,
     CfnOutput,
 )
@@ -90,7 +94,47 @@ class ApiStack(Stack):
         if uploads_bucket:
             uploads_bucket.grant_put(create_upload_url_fn)
 
+        # === Create Secrets for CloudFront ===
+        # Get CloudFront credentials from context (cdk deploy -c cloudfront_key_pair_id=... -c cloudfront_private_key=...)
+        cloudfront_key_pair_id = self.node.try_get_context("cloudfront_key_pair_id")
+        cloudfront_private_key = self.node.try_get_context("cloudfront_private_key")
+
+        # Only create secret if credentials provided
+        cloudfront_secret = None
+        if cloudfront_key_pair_id and cloudfront_private_key:
+            cloudfront_secret = secrets.Secret(
+                self,
+                "CloudFrontSecret",
+                secret_name=f"{construct_id}/cloudfront-keypair",
+                description="CloudFront key pair for signed URLs",
+                secret_string_value=secrets.SecretValue.unsafe_plain_text(
+                    json.dumps({
+                        "keyPairId": cloudfront_key_pair_id,
+                        "privateKey": cloudfront_private_key,
+                    })
+                ),
+            )
+
+        # Store CloudFront domain in Parameter Store
+        cloudfront_domain_param = ssm.StringParameter(
+            self,
+            "CloudFrontDomainParam",
+            parameter_name=f"/{construct_id}/cloudfront-domain",
+            string_value=cloudfront_domain,
+            description="CloudFront distribution domain",
+        )
+
         # getReadUrl Lambda
+        get_read_url_env = {
+            "BOOKS_TABLE_NAME": books_table.table_name if books_table else "OnlineLibrary",
+            "CLOUDFRONT_DOMAIN_PARAM": cloudfront_domain_param.parameter_name,
+            "READ_URL_TTL_SECONDS": "3600",
+        }
+        
+        # Add secret ARN only if CloudFront credentials provided
+        if cloudfront_secret:
+            get_read_url_env["CLOUDFRONT_SECRET_ARN"] = cloudfront_secret.secret_arn
+
         get_read_url_fn = _lambda.Function(
             self,
             "GetReadUrlFn",
@@ -102,19 +146,20 @@ class ApiStack(Stack):
             ),
             timeout=Duration.seconds(30),
             memory_size=256,
-            environment={
-                "BOOKS_TABLE_NAME": books_table.table_name if books_table else "OnlineLibrary",
-                "CLOUDFRONT_DOMAIN": cloudfront_domain,
-                "CLOUDFRONT_KEY_PAIR_ID": "APKAJTEST",  # TODO: Set from AWS CloudFront console
-                "CLOUDFRONT_PRIVATE_KEY": "test-key",  # TODO: Set from AWS Secrets Manager
-                "READ_URL_TTL_SECONDS": "3600",
-            },
+            environment=get_read_url_env,
         )
         lambdas["getReadUrl"] = get_read_url_fn
 
         # Grant permissions
         if books_table:
             books_table.grant_read_data(get_read_url_fn)
+        
+        # Grant access to parameters
+        cloudfront_domain_param.grant_read(get_read_url_fn)
+        
+        # Grant access to secrets if provided
+        if cloudfront_secret:
+            cloudfront_secret.grant_read(get_read_url_fn)
 
         # Routes
         routes = [
