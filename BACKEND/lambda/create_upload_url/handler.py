@@ -40,6 +40,7 @@ from shared.validators import (
 from shared.auth import extract_and_validate_user
 from shared.logger import get_logger
 from shared.dynamodb import put_draft_book_item
+from shared.aws_clients import s3_client
 
 logger = get_logger(__name__)
 
@@ -103,9 +104,7 @@ def _build_s3_key(book_id: str, file_name: str) -> str:
 
 
 def _create_presigned_put_url(bucket_name, object_key, expires_in):
-    region = os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION") or "ap-southeast-1"
-    s3 = boto3.client("s3", region_name=region)
-    return s3.generate_presigned_url(
+    return s3_client().generate_presigned_url(
         ClientMethod="put_object",
         Params={"Bucket": bucket_name, "Key": object_key},
         ExpiresIn=expires_in,
