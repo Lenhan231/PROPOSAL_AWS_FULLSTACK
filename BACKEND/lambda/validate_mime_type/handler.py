@@ -23,9 +23,8 @@ Environment variables:
 
 import json
 import os
+import mimetypes
 from typing import Any, Dict, Optional
-
-import magic
 
 from shared.logger import get_logger
 from shared.dynamodb import update_book_status
@@ -66,19 +65,30 @@ def _get_s3_object(bucket: str, key: str) -> bytes:
     return response["Body"].read()
 
 
-def _check_mime_type(file_content: bytes, allowed_types: set[str]) -> tuple[str, bool]:
+def _check_mime_type(file_content: bytes, file_name: str, allowed_types: set[str]) -> tuple[str, bool]:
     """
     Check MIME type of file content.
 
     Args:
         file_content: File content as bytes
+        file_name: File name for extension-based detection
         allowed_types: Set of allowed MIME types
 
     Returns:
         Tuple of (mime_type, is_valid)
     """
     try:
-        mime_type = magic.from_buffer(file_content, mime=True)
+        # Method 1: Check file signature (magic bytes)
+        if file_content.startswith(b'%PDF'):
+            mime_type = 'application/pdf'
+        elif file_content.startswith(b'PK\x03\x04') and file_name.lower().endswith('.epub'):
+            mime_type = 'application/epub+zip'
+        else:
+            # Method 2: Fallback to extension-based detection
+            mime_type, _ = mimetypes.guess_type(file_name)
+            if not mime_type:
+                mime_type = 'application/octet-stream'
+        
         is_valid = mime_type in allowed_types
         return mime_type, is_valid
     except Exception as e:
@@ -166,8 +176,11 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # Get file content from S3
         file_content = _get_s3_object(bucket, key)
 
+        # Extract file name from S3 key
+        file_name = key.split('/')[-1]
+
         # Check MIME type
-        mime_type, is_valid = _check_mime_type(file_content, allowed_mime_types)
+        mime_type, is_valid = _check_mime_type(file_content, file_name, allowed_mime_types)
 
         logger.info(f"Book {book_id}: MIME type = {mime_type}, Valid = {is_valid}")
 

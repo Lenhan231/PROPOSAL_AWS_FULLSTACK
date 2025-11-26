@@ -162,34 +162,8 @@ class ApiStack(Stack):
         if cloudfront_secret:
             cloudfront_secret.grant_read(get_read_url_fn)
 
-        # validateMimeType Lambda (S3 event trigger)
-        validate_mime_type_fn = _lambda.Function(
-            self,
-            "ValidateMimeTypeFn",
-            runtime=_lambda.Runtime.PYTHON_3_12,
-            handler="validate_mime_type.handler.handler",
-            code=_lambda.Code.from_asset(
-                "./lambda",
-                exclude=["**/__pycache__", "*.pyc", ".pytest_cache", "tests"],
-            ),
-            timeout=Duration.seconds(60),
-            memory_size=512,
-            environment={
-                "BOOKS_TABLE_NAME": books_table.table_name if books_table else "OnlineLibrary",
-                "UPLOADS_BUCKET_NAME": uploads_bucket.bucket_name if uploads_bucket else "uploads",
-                "ALLOWED_MIME_TYPES": "application/pdf,application/epub+zip",
-            },
-        )
-        lambdas["validateMimeType"] = validate_mime_type_fn
-
-        # Grant permissions
-        if books_table:
-            books_table.grant_write_data(validate_mime_type_fn)
-        if uploads_bucket:
-            uploads_bucket.grant_read_write(validate_mime_type_fn)
-
-        # Note: S3 event notification will be added in StorageStack
-        # to avoid cyclic dependency between Storage and API stacks
+        # Note: validate_mime_type Lambda moved to ProcessingStack
+        # to avoid cyclic dependencies with S3 event notifications
 
         # Routes
         routes = [

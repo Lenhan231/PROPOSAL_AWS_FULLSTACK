@@ -17,6 +17,7 @@ from lib.stack.storage_stack import StorageStack
 from lib.stack.cdn_stack import CdnStack
 from lib.stack.bucket_policy_stack import BucketPolicyStack
 from lib.stack.api_stack import ApiStack
+from lib.stack.processing_stack import ProcessingStack
 from lib.stack.monitoring_stack import MonitoringStack
 
 app = cdk.App()
@@ -101,6 +102,26 @@ api_stack = ApiStack(
     description="HTTP API + Lambda for Online Library",
 )
 
+# Phase 5b: ProcessingStack (file processing Lambda functions)
+processing_stack = ProcessingStack(
+    app,
+    f"{stack_prefix}-Processing",
+    database_stack=database_stack,
+    env=env,
+    description="File processing Lambda functions",
+)
+
+# Phase 5c: EventStack (S3 event notifications)
+# Note: S3 event notification will be created via script to avoid cyclic dependencies
+# event_stack = EventStack(
+#     app,
+#     f"{stack_prefix}-Event",
+#     storage_stack=storage_stack,
+#     processing_stack=processing_stack,
+#     env=env,
+#     description="S3 event notifications and Lambda triggers",
+# )
+
 # Phase 6: MonitoringStack
 monitoring_stack = MonitoringStack(
     app,
@@ -114,7 +135,7 @@ monitoring_stack = MonitoringStack(
 
 
 # Apply tags
-for stack in [cognito_stack, database_stack, storage_stack, cdn_stack, bucket_policy_stack, api_stack, monitoring_stack]:
+for stack in [cognito_stack, database_stack, storage_stack, cdn_stack, bucket_policy_stack, api_stack, processing_stack, monitoring_stack]:
     cdk.Tags.of(stack).add("Project", "OnlineLibrary")
     cdk.Tags.of(stack).add("Environment", env_name)
     cdk.Tags.of(stack).add("ManagedBy", "CDK")
