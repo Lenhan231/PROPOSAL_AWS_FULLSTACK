@@ -24,13 +24,12 @@ Environment variables:
 import json
 import os
 from typing import Any, Dict, Optional
-from datetime import datetime, timezone
 
-import boto3
 import magic
 
 from shared.logger import get_logger
-from shared.dynamodb import get_book_item, update_book_status
+from shared.dynamodb import update_book_status
+from shared.aws_clients import s3_client
 
 logger = get_logger(__name__)
 
@@ -63,8 +62,7 @@ def _get_s3_object(bucket: str, key: str) -> bytes:
     Raises:
         Exception: If S3 operation fails
     """
-    s3 = boto3.client("s3")
-    response = s3.get_object(Bucket=bucket, Key=key)
+    response = s3_client().get_object(Bucket=bucket, Key=key)
     return response["Body"].read()
 
 
@@ -104,7 +102,7 @@ def _move_s3_object(
     Raises:
         Exception: If S3 operation fails
     """
-    s3 = boto3.client("s3")
+    s3 = s3_client()
 
     # Copy object
     s3.copy_object(
