@@ -7,12 +7,11 @@ import { api } from "../lib/api";
 import Toast from "../components/Toast";
 
 export default function BooksPage() {
-  const [searchMode, setSearchMode] = useState("title"); // "title" or "author"
   const [searchQuery, setSearchQuery] = useState("");
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [meta, setMeta] = useState({ total: 0, page: 1, pageSize: 20 });
+  const [meta, setMeta] = useState({ total: 0, limit: 20 });
   const [toast, setToast] = useState({ show: false, message: "", type: "success" });
 
   // Load all books on initial mount
@@ -25,12 +24,46 @@ export default function BooksPage() {
       setLoading(true);
       setError("");
       const result = await api.searchBooks(params);
-      setBooks(result.data || []);
-      setMeta(result.meta || { total: 0, page: 1, pageSize: 20 });
+      
+      // Backend returns { books: [...] } instead of { data: [...] }
+      setBooks(result.books || []);
+      setMeta({ total: result.books?.length || 0, limit: params.limit || 20 });
     } catch (err) {
       console.error("Failed to load books:", err);
-      setError(err.response?.data?.message || "Không thể tải danh sách sách");
-      setBooks([]);
+      
+      // Check if it's a network/CORS error (backend not implemented)
+      if (err.code === "ERR_NETWORK" || err.response?.status === 404) {
+        // Show mock data for development
+        const mockBooks = [
+          {
+            bookId: "mock-1",
+            title: "AWS Serverless Architecture",
+            author: "John Doe",
+            description: "A comprehensive guide to building serverless applications on AWS. Learn about Lambda, API Gateway, and more.",
+            status: "APPROVED"
+          },
+          {
+            bookId: "mock-2",
+            title: "Next.js Complete Guide",
+            author: "Jane Smith",
+            description: "Master Next.js from basics to advanced concepts. Includes React Server Components and App Router.",
+            status: "APPROVED"
+          },
+          {
+            bookId: "mock-3",
+            title: "React Best Practices",
+            author: "Bob Johnson",
+            description: "Learn the best practices for building React applications with hooks, context, and performance optimization.",
+            status: "APPROVED"
+          },
+        ];
+        setBooks(mockBooks);
+        setMeta({ total: mockBooks.length, limit: 20 });
+        setError("⚠️ Đang sử dụng dữ liệu mẫu. Backend API chưa được triển khai.");
+      } else {
+        setError(err.response?.data?.message || "Không thể tải danh sách sách");
+        setBooks([]);
+      }
     } finally {
       setLoading(false);
     }
@@ -40,15 +73,15 @@ export default function BooksPage() {
     e.preventDefault();
     
     if (!searchQuery.trim()) {
-      // If empty, load all books
-      loadBooks();
+      // If empty, load all books (no query param)
+      loadBooks({ limit: 20 });
       return;
     }
 
+    // Backend uses 'q' for search query
     const params = {
-      [searchMode]: searchQuery.trim(),
-      page: 1,
-      pageSize: 20,
+      q: searchQuery.trim(),
+      limit: 20,
     };
 
     await loadBooks(params);
@@ -77,28 +110,13 @@ export default function BooksPage() {
           </h1>
 
           <form onSubmit={handleSearch} className="max-w-2xl mx-auto">
-            <div className="flex flex-col gap-4 mb-4 sm:flex-row">
-              {/* Search Mode Selector */}
-              <select
-                value={searchMode}
-                onChange={(e) => setSearchMode(e.target.value)}
-                className="px-4 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg dark:bg-gray-800 dark:text-white dark:border-gray-600 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                disabled={loading}
-              >
-                <option value="title">Tìm theo tên sách</option>
-                <option value="author">Tìm theo tác giả</option>
-              </select>
-
+            <div className="flex gap-4 mb-4">
               {/* Search Input */}
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={
-                  searchMode === "title"
-                    ? "Nhập tên sách..."
-                    : "Nhập tên tác giả..."
-                }
+                placeholder="Tìm kiếm sách (tên sách, tác giả, từ khóa...)"
                 className="flex-1 px-4 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg dark:bg-gray-800 dark:text-white dark:border-gray-600 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 disabled={loading}
               />
@@ -118,10 +136,14 @@ export default function BooksPage() {
           </form>
         </div>
 
-        {/* Error Message */}
+        {/* Error/Warning Message */}
         {error && (
-          <div className="max-w-2xl p-4 mx-auto mb-6 text-red-800 bg-red-100 border border-red-300 rounded-lg dark:bg-red-900 dark:text-red-200 dark:border-red-700">
-            <p className="font-medium">Lỗi</p>
+          <div className={`max-w-2xl p-4 mx-auto mb-6 rounded-lg ${
+            error.startsWith("⚠️") 
+              ? "text-yellow-800 bg-yellow-100 border border-yellow-300 dark:bg-yellow-900 dark:text-yellow-200 dark:border-yellow-700"
+              : "text-red-800 bg-red-100 border border-red-300 dark:bg-red-900 dark:text-red-200 dark:border-red-700"
+          }`}>
+            <p className="font-medium">{error.startsWith("⚠️") ? "Thông báo" : "Lỗi"}</p>
             <p className="text-sm">{error}</p>
           </div>
         )}
@@ -175,13 +197,22 @@ function BookCard({ book, onError }) {
   const [loading, setLoading] = useState(false);
 
   const handleRead = async () => {
+    // Check if this is mock data
+    if (book.bookId.startsWith("mock-")) {
+      onError("⚠️ Backend API chưa được triển khai. Chức năng đọc sách sẽ khả dụng sau khi triển khai Lambda getReadUrl.", "error");
+      return;
+    }
+
     try {
       setLoading(true);
       const result = await api.getReadUrl(book.bookId);
       
-      if (result.readUrl) {
+      // Handle both 'url' and 'readUrl' response formats
+      const signedUrl = result.url || result.readUrl;
+      
+      if (signedUrl) {
         // Open the signed URL in a new tab
-        window.open(result.readUrl, "_blank", "noopener,noreferrer");
+        window.open(signedUrl, "_blank", "noopener,noreferrer");
       } else {
         onError("Không thể lấy URL đọc sách", "error");
       }
@@ -189,10 +220,10 @@ function BookCard({ book, onError }) {
       console.error("Failed to get read URL:", err);
       const errorMsg = err.response?.data?.message || err.message;
       
-      if (err.response?.status === 403) {
+      if (err.code === "ERR_NETWORK" || err.response?.status === 404) {
+        onError("Backend API chưa được triển khai. Vui lòng triển khai Lambda getReadUrl trước.", "error");
+      } else if (err.response?.status === 403) {
         onError("Sách chưa được duyệt hoặc bạn không có quyền truy cập", "error");
-      } else if (err.response?.status === 404) {
-        onError("Không tìm thấy sách", "error");
       } else {
         onError(errorMsg || "Không thể đọc sách. Vui lòng thử lại sau", "error");
       }

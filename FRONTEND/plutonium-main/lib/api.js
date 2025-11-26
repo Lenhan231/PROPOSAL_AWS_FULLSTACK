@@ -75,8 +75,8 @@ export const api = {
   // ========== Books ==========
   
   /**
-   * Search books by title or author
-   * @param {Object} params - { title?: string, author?: string, page?: number, pageSize?: number }
+   * Search books by query string
+   * @param {Object} params - { q?: string, limit?: number }
    */
   searchBooks: async (params) => {
     const response = await apiClient.get(API_ENDPOINTS.SEARCH_BOOKS, { params });
