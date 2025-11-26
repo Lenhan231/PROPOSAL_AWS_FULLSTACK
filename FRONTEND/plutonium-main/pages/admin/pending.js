@@ -1,47 +1,87 @@
+import { useState, useEffect } from "react";
 import Head from "next/head";
 import Header from "../../components/Header";
 import Footer from "../../components/Footer";
 import ProtectedRoute from "../../components/ProtectedRoute";
+import Toast from "../../components/Toast";
+import { api } from "../../lib/api";
+import { BOOK_STATUS } from "../../lib/constants";
 
-// Disable static generation for this page (requires authentication)
-export const config = {
-  unstable_runtimeJS: true,
-};
+// Force SSR to ensure auth context is available
+export async function getServerSideProps() {
+  return { props: {} };
+}
 
 export default function AdminPendingPage() {
-  // TODO: Replace with real API call using usePendingBooks hook
-  const pendingBooks = [
-    {
-      bookId: "1",
-      title: "AWS Serverless Architecture",
-      author: "John Doe",
-      uploader: "user@example.com",
-      uploadedAt: "2025-01-20T10:30:00Z",
-      fileSize: 5242880,
-    },
-    {
-      bookId: "2",
-      title: "Next.js Complete Guide",
-      author: "Jane Smith",
-      uploader: "student@example.com",
-      uploadedAt: "2025-01-20T09:15:00Z",
-      fileSize: 3145728,
-    },
-  ];
+  const [books, setBooks] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [toast, setToast] = useState({ show: false, message: "", type: "success" });
+  const [rejectModal, setRejectModal] = useState({ show: false, bookId: null, title: "" });
+  const [rejectReason, setRejectReason] = useState("");
 
-  const handleApprove = (bookId) => {
-    // TODO: Implement with useApproveBook hook
-    if (confirm("Duyệt sách này?")) {
-      alert(`Đã duyệt sách ${bookId}`);
+  useEffect(() => {
+    loadPendingBooks();
+  }, []);
+
+  const loadPendingBooks = async () => {
+    try {
+      setLoading(true);
+      setError("");
+      const result = await api.getPendingBooks();
+      setBooks(result.books || []);
+    } catch (err) {
+      console.error("Failed to load pending books:", err);
+      setError(err.response?.data?.message || "Không thể tải danh sách sách chờ duyệt");
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleReject = (bookId) => {
-    // TODO: Implement with useRejectBook hook and modal
-    const reason = prompt("Nhập lý do từ chối:");
-    if (reason) {
-      alert(`Đã từ chối sách ${bookId}: ${reason}`);
+  const handleApprove = async (bookId, title) => {
+    if (!confirm(`Duyệt sách "${title}"?`)) return;
+
+    try {
+      await api.approveBook(bookId);
+      showToast(`Đã duyệt sách "${title}"`, "success");
+      // Remove from list or reload
+      setBooks(books.filter(b => b.bookId !== bookId));
+    } catch (err) {
+      console.error("Failed to approve book:", err);
+      showToast(err.response?.data?.message || "Không thể duyệt sách", "error");
     }
+  };
+
+  const handleRejectClick = (bookId, title) => {
+    setRejectModal({ show: true, bookId, title });
+    setRejectReason("");
+  };
+
+  const handleRejectConfirm = async () => {
+    if (!rejectReason.trim()) {
+      showToast("Vui lòng nhập lý do từ chối", "error");
+      return;
+    }
+
+    try {
+      await api.rejectBook(rejectModal.bookId, rejectReason);
+      showToast(`Đã từ chối sách "${rejectModal.title}"`, "success");
+      // Remove from list or reload
+      setBooks(books.filter(b => b.bookId !== rejectModal.bookId));
+      setRejectModal({ show: false, bookId: null, title: "" });
+      setRejectReason("");
+    } catch (err) {
+      console.error("Failed to reject book:", err);
+      showToast(err.response?.data?.message || "Không thể từ chối sách", "error");
+    }
+  };
+
+  const showToast = (message, type = "success") => {
+    setToast({ show: true, message, type });
+  };
+
+  const closeToast = () => {
+    setToast({ show: false, message: "", type: "success" });
   };
 
   return (
@@ -63,53 +103,79 @@ export default function AdminPendingPage() {
             </p>
           </div>
 
+          {/* Error Message */}
+          {error && (
+            <div className="p-4 mb-6 text-red-800 bg-red-100 border border-red-300 rounded-lg dark:bg-red-900 dark:text-red-200 dark:border-red-700">
+              <p className="font-medium">Lỗi</p>
+              <p className="text-sm">{error}</p>
+            </div>
+          )}
+
+          {/* Loading State */}
+          {loading && (
+            <div className="py-16 text-center">
+              <div className="inline-block w-12 h-12 border-4 border-blue-600 rounded-full border-t-transparent animate-spin"></div>
+              <p className="mt-4 text-gray-600 dark:text-gray-400">Đang tải...</p>
+            </div>
+          )}
+
           {/* Stats Cards */}
-          <div className="grid gap-6 mb-8 md:grid-cols-3">
-            <StatCard
-              title="Chờ duyệt"
-              value={pendingBooks.length}
-              icon="⏳"
-              color="yellow"
-            />
-            <StatCard
-              title="Đã duyệt hôm nay"
-              value="0"
-              icon="✅"
-              color="green"
-            />
-            <StatCard
-              title="Đã từ chối hôm nay"
-              value="0"
-              icon="❌"
-              color="red"
-            />
-          </div>
+          {!loading && (
+            <div className="grid gap-6 mb-8 md:grid-cols-3">
+              <StatCard
+                title="Chờ duyệt"
+                value={books.length}
+                icon="⏳"
+                color="yellow"
+              />
+              <StatCard
+                title="Tổng sách"
+                value={books.length}
+                icon="📚"
+                color="green"
+              />
+              <StatCard
+                title="Trạng thái"
+                value="Active"
+                icon="✅"
+                color="green"
+              />
+            </div>
+          )}
 
           {/* Pending Books List */}
-          <div className="p-6 bg-white border border-gray-200 rounded-xl dark:bg-gray-800 dark:border-gray-700">
-            <h2 className="mb-6 text-2xl font-bold text-gray-900 dark:text-white">
-              Sách chờ duyệt ({pendingBooks.length})
-            </h2>
+          {!loading && (
+            <div className="p-6 bg-white border border-gray-200 rounded-xl dark:bg-gray-800 dark:border-gray-700">
+              <h2 className="mb-6 text-2xl font-bold text-gray-900 dark:text-white">
+                Sách chờ duyệt ({books.length})
+              </h2>
 
-            {pendingBooks.length === 0 ? (
+              {books.length === 0 ? (
               <div className="py-16 text-center">
                 <p className="text-xl text-gray-500 dark:text-gray-400">
                   Không có sách nào chờ duyệt
                 </p>
               </div>
-            ) : (
+            ) : books.length > 0 ? (
               <div className="space-y-4">
-                {pendingBooks.map((book) => (
+                {books.map((book) => (
                   <PendingBookCard
                     key={book.bookId}
                     book={book}
                     onApprove={handleApprove}
-                    onReject={handleReject}
+                    onReject={handleRejectClick}
                   />
                 ))}
               </div>
+            ) : (
+              <div className="py-16 text-center">
+                <p className="text-xl text-gray-500 dark:text-gray-400">
+                  Không có sách nào đang chờ duyệt
+                </p>
+              </div>
             )}
-          </div>
+            </div>
+          )}
 
           {/* Info Box */}
           <div className="p-6 mt-8 bg-blue-50 border border-blue-200 rounded-xl dark:bg-gray-800 dark:border-blue-900">
@@ -126,6 +192,46 @@ export default function AdminPendingPage() {
         </main>
 
         <Footer />
+
+        {/* Toast Notifications */}
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          show={toast.show}
+          onClose={closeToast}
+        />
+
+        {/* Reject Modal */}
+        {rejectModal.show && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
+            <div className="w-full max-w-md p-6 bg-white rounded-lg dark:bg-gray-800">
+              <h3 className="mb-4 text-xl font-semibold text-gray-900 dark:text-white">
+                Từ chối sách: {rejectModal.title}
+              </h3>
+              <textarea
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="Nhập lý do từ chối (bắt buộc)..."
+                rows={4}
+                className="w-full px-4 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg dark:bg-gray-700 dark:text-white dark:border-gray-600 focus:ring-2 focus:ring-red-500 focus:border-transparent"
+              />
+              <div className="flex gap-3 mt-4">
+                <button
+                  onClick={() => setRejectModal({ show: false, bookId: null, title: "" })}
+                  className="flex-1 px-4 py-2 text-gray-700 transition-colors bg-gray-200 rounded-lg hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+                >
+                  Hủy
+                </button>
+                <button
+                  onClick={handleRejectConfirm}
+                  className="flex-1 px-4 py-2 text-white transition-colors bg-red-600 rounded-lg hover:bg-red-700"
+                >
+                  Xác nhận từ chối
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </ProtectedRoute>
   );
@@ -180,11 +286,7 @@ function PendingBookCard({ book, onApprove, onReject }) {
               <span className="font-medium">Tác giả:</span> {book.author}
             </p>
             <p>
-              <span className="font-medium">Người tải:</span> {book.uploader}
-            </p>
-            <p>
-              <span className="font-medium">Thời gian:</span>{" "}
-              {formatDate(book.uploadedAt)}
+              <span className="font-medium">Người tải:</span> {book.uploaderEmail || book.uploader}
             </p>
             <p>
               <span className="font-medium">Kích thước:</span>{" "}
@@ -195,13 +297,13 @@ function PendingBookCard({ book, onApprove, onReject }) {
 
         <div className="flex gap-3">
           <button
-            onClick={() => onApprove(book.bookId)}
+            onClick={() => onApprove(book.bookId, book.title)}
             className="px-6 py-3 font-medium text-white transition-colors bg-green-600 rounded-lg hover:bg-green-700"
           >
             ✅ Duyệt
           </button>
           <button
-            onClick={() => onReject(book.bookId)}
+            onClick={() => onReject(book.bookId, book.title)}
             className="px-6 py-3 font-medium text-white transition-colors bg-red-600 rounded-lg hover:bg-red-700"
           >
             ❌ Từ chối
@@ -210,10 +312,4 @@ function PendingBookCard({ book, onApprove, onReject }) {
       </div>
     </div>
   );
-}
-// Force server-side rendering to avoid static export errors with AuthContext
-export async function getServerSideProps() {
-  return {
-    props: {},
-  };
 }

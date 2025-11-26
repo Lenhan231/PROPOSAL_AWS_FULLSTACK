@@ -218,12 +218,27 @@ function BookCard({ book, onError }) {
       }
     } catch (err) {
       console.error("Failed to get read URL:", err);
-      const errorMsg = err.response?.data?.message || err.message;
+      console.error("Error details:", {
+        status: err.response?.status,
+        data: err.response?.data,
+        message: err.message
+      });
       
-      if (err.code === "ERR_NETWORK" || err.response?.status === 404) {
-        onError("Backend API chưa được triển khai. Vui lòng triển khai Lambda getReadUrl trước.", "error");
+      const errorMsg = err.response?.data?.message || err.response?.data?.error || err.message;
+      
+      if (err.response?.status === 404) {
+        // Check if it's a "not found/not approved" error from backend
+        if (errorMsg.includes("not found") || errorMsg.includes("not approved")) {
+          onError("Sách không tồn tại hoặc chưa được duyệt. Vui lòng chọn sách khác.", "error");
+        } else {
+          onError("Backend API chưa được triển khai. Vui lòng triển khai Lambda getReadUrl trước.", "error");
+        }
+      } else if (err.code === "ERR_NETWORK") {
+        onError("Lỗi kết nối. Kiểm tra backend API đang chạy.", "error");
       } else if (err.response?.status === 403) {
-        onError("Sách chưa được duyệt hoặc bạn không có quyền truy cập", "error");
+        onError("Bạn không có quyền truy cập sách này", "error");
+      } else if (err.response?.status === 500) {
+        onError(`Lỗi server: ${errorMsg}. Kiểm tra CloudWatch Logs để xem chi tiết.`, "error");
       } else {
         onError(errorMsg || "Không thể đọc sách. Vui lòng thử lại sau", "error");
       }
