@@ -1,0 +1,23 @@
+﻿Estimate summary
+Upfront cost,Monthly cost,Total 12 months cost,Currency
+0,9.8,117.60,USD
+,,* Includes upfront cost
+
+
+Detailed Estimate
+Group hierarchy,Region,Description,Service,Upfront,Monthly,First 12 months total,Currency,Configuration summary
+My Estimate,Asia Pacific (Singapore),,Amazon CloudFront,0,0.86,10.32,USD,"Data transfer out to internet (10 GB per month), Number of requests (HTTPS) (10000 per month)"
+My Estimate,Asia Pacific (Singapore),,AWS Amplify,0,1.31,15.72,USD,"Select build instance size (Standard (8 GB Memory, 4 vCPUs)), Duration of each request (in ms) (500), Number of build minutes (100 per month), Data stored per month (0.5 GB), Data served per month (2 GB)"
+My Estimate,Asia Pacific (Singapore),,Amazon API Gateway,0,0.01,0.12,USD,"HTTP API requests units (exact number), Average size of each request (34 Bytes), REST API request units (millions), Cache memory size (GB) (None), WebSocket message units (thousands), Average message size (32 KB), Requests (10000 per month)"
+My Estimate,Asia Pacific (Singapore),,AWS Lambda,0,0,0.00,USD,"Architecture (x86), Amount of ephemeral storage allocated (512 MB), Architecture (x86), Invoke Mode (Buffered), Number of requests (10000 per month)"
+My Estimate,Asia Pacific (Singapore),,S3 Standard,0,0.05,0.60,USD,S3 Standard storage (2 GB per month)
+My Estimate,Asia Pacific (Singapore),,Data Transfer,0,0,0.00,USD,"DT Inbound: Not selected (0 TB per month), DT Outbound: Not selected (0 TB per month)"
+My Estimate,Asia Pacific (Singapore),,DynamoDB on-demand capacity,0,0.03,0.36,USD,"Table class (Standard), Average item size (all attributes) (1 KB), Data storage size (0.1 GB)"
+My Estimate,Asia Pacific (Singapore),,Amazon Cognito,0,5,60.00,USD,"Optimization Rate for Token Requests (0), Optimization Rate for App Clients (0), Advanced security features (Enabled), Number of monthly active users (MAU) (100)"
+My Estimate,Asia Pacific (Singapore),,Amazon CloudWatch,0,1.64,19.68,USD,"Number of Metrics (includes detailed and custom metrics) (5), Standard Logs: Data Ingested (0.1 GB), Infrequent Access Logs: Data Ingested (0 GB), Standard Logs Delivered to CloudWatch Logs (0.1 GB)"
+My Estimate,Asia Pacific (Singapore),,Amazon Route 53,0,0.9,10.80,USD,"Hosted Zones (1), Additional Records in Hosted Zones (0)"
+
+
+
+Acknowledgement
+"* AWS Pricing Calculator provides only an estimate of your AWS fees and doesn't include any taxes that might apply. Your actual fees depend on a variety of factors, including your actual usage of AWS services."

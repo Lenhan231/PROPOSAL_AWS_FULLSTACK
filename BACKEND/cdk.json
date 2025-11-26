@@ -1,0 +1,21 @@
+{
+    "app": "python3 bin/app.py",
+    "watch": {
+    "include": ["**"],
+    "exclude": [
+        "FRONTEND/**",
+        "README.md",
+        "cdk*.json",
+        "requirements*.txt",
+        "**/__pycache__",
+        "**/*.pyc"
+    ]
+    },
+    "context": {
+        "@aws-cdk/aws-lambda:recognizeLayerVersion": true,
+        "@aws-cdk/core:checkSecretUsage": true,
+        "@aws-cdk/aws-apigateway:disableCloudWatchRole": true,
+        "@aws-cdk/core:enablePartitionLiterals": true,
+        "@aws-cdk/aws-s3:serverAccessLogsUseBucketPolicy": true
+    }
+}
