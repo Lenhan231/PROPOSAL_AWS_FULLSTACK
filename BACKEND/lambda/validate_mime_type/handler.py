@@ -124,7 +124,7 @@ def _update_item_set_fields(pk: str, sk: str, set_fields: Dict[str, Any], remove
     except Exception:
         logger.exception("DynamoDB update_item failed")
         raise
-
+#fhgfhgf
 
 def _set_pending(book_id: str, uploader_id: str, uploaded_at: str, file_size: int, s3_key: str) -> None:
     pk = f"BOOK#{book_id}"
