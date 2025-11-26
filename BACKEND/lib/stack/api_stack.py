@@ -128,13 +128,18 @@ class ApiStack(Stack):
         # getReadUrl Lambda
         get_read_url_env = {
             "BOOKS_TABLE_NAME": books_table.table_name if books_table else "OnlineLibrary",
-            "CLOUDFRONT_DOMAIN_PARAM": cloudfront_domain_param.parameter_name,
-            "READ_URL_TTL_SECONDS": "3600",
+            "CLOUDFRONT_DOMAIN": cloudfront_domain,
         }
         
-        # Add secret ARN only if CloudFront credentials provided
-        if cloudfront_secret:
-            get_read_url_env["CLOUDFRONT_SECRET_ARN"] = cloudfront_secret.secret_arn
+        # Add CloudFront credentials if provided
+        if cloudfront_key_pair_id:
+            get_read_url_env["CLOUDFRONT_KEY_PAIR_ID"] = cloudfront_key_pair_id
+        if cloudfront_private_key:
+            # Encode private key as base64 for environment variable
+            import base64
+            get_read_url_env["CLOUDFRONT_PRIVATE_KEY"] = base64.b64encode(
+                cloudfront_private_key.encode()
+            ).decode()
 
         get_read_url_fn = _lambda.Function(
             self,
@@ -162,6 +167,28 @@ class ApiStack(Stack):
         if cloudfront_secret:
             cloudfront_secret.grant_read(get_read_url_fn)
 
+        # searchBooks Lambda
+        search_books_fn = _lambda.Function(
+            self,
+            "SearchBooksFn",
+            runtime=_lambda.Runtime.PYTHON_3_12,
+            handler="search_books.handler.handler",
+            code=_lambda.Code.from_asset(
+                "./lambda",
+                exclude=["**/__pycache__", "*.pyc", ".pytest_cache", "tests"],
+            ),
+            timeout=Duration.seconds(30),
+            memory_size=256,
+            environment={
+                "BOOKS_TABLE_NAME": books_table.table_name if books_table else "OnlineLibrary",
+            },
+        )
+        lambdas["searchBooks"] = search_books_fn
+
+        # Grant permissions
+        if books_table:
+            books_table.grant_read_data(search_books_fn)
+
         # Note: validate_mime_type Lambda moved to ProcessingStack
         # to avoid cyclic dependencies with S3 event notifications
 
@@ -169,7 +196,7 @@ class ApiStack(Stack):
         routes = [
             ("/books/upload-url", apigw.HttpMethod.POST, create_upload_url_fn),
             ("/books/{bookId}/read-url", apigw.HttpMethod.GET, get_read_url_fn),
-            ("/books/search", apigw.HttpMethod.GET, None),  # TODO
+            ("/books/search", apigw.HttpMethod.GET, search_books_fn),
             ("/books/my-uploads", apigw.HttpMethod.GET, None),  # TODO
             ("/admin/books/pending", apigw.HttpMethod.GET, None),  # TODO
             ("/admin/books/{bookId}/approve", apigw.HttpMethod.POST, None),  # TODO

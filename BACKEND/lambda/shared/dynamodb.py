@@ -278,3 +278,24 @@ def query_by_gsi(
     )
 
     return response.get("Items", [])
+
+
+def get_book_metadata(table_name: str, book_id: str) -> Optional[Dict[str, Any]]:
+    """
+    Get book metadata from DynamoDB.
+
+    Alias for get_book_item for consistency.
+
+    Args:
+        table_name: DynamoDB table name
+        book_id: Book ID to retrieve
+
+    Returns:
+        Book metadata dictionary or None if not found
+
+    Example:
+        book = get_book_metadata("OnlineLibrary", "book-123")
+        if book and book.get("status") == "APPROVED":
+            print(f"Book is ready to read")
+    """
+    return get_book_item(table_name, book_id)

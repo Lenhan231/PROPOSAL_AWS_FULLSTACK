@@ -1,202 +1,241 @@
 """
-Lambda entrypoint for the `get_read_url` function.
+get_read_url Lambda - Generate CloudFront signed URL for reading books
 
-This function generates a CloudFront signed URL for reading an approved book.
-The URL is valid for 1 hour and can only be used to access files in the
-public/books/ prefix via CloudFront.
+Triggered by GET /books/{bookId}/read-url
+Returns a signed CloudFront URL that expires in 1 hour.
 
-Environment variables expected:
-- BOOKS_TABLE_NAME: DynamoDB table name (e.g. OnlineLibrary)
-- CLOUDFRONT_DOMAIN: CloudFront domain name (e.g. d123456.cloudfront.net)
-- CLOUDFRONT_KEY_PAIR_ID: CloudFront key pair ID for signing
-- CLOUDFRONT_PRIVATE_KEY: CloudFront private key for signing (base64 encoded)
-- READ_URL_TTL_SECONDS: (optional) TTL for signed URL, default 3600 (1 hour)
+Flow:
+1. User authenticated via JWT
+2. Check if book exists and is APPROVED
+3. Generate CloudFront signed URL
+4. Return URL to frontend
+5. Frontend uses URL to download file from CloudFront
+
+Environment variables:
+- CLOUDFRONT_DOMAIN: CloudFront domain name
+- CLOUDFRONT_KEY_PAIR_ID: CloudFront key pair ID
+- CLOUDFRONT_PRIVATE_KEY: CloudFront private key (base64 encoded)
+- BOOKS_TABLE_NAME: DynamoDB table name
 """
 
-import base64
+import json
 import os
-from datetime import datetime, timedelta, timezone
+import base64
+from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 
-from botocore.signers import CloudFrontSigner
-
-# Import from shared utilities (parent directory)
-from shared.error_handler import (
-    lambda_handler_wrapper,
-    api_response,
-    ApiError,
-    ErrorCode,
-)
-from shared.validators import validate_string_field
-from shared.auth import extract_and_validate_user
 from shared.logger import get_logger
-from shared.dynamodb import get_book_item
+from shared.dynamodb import get_book_metadata
+from shared.error_handler import api_response, build_error_response, ErrorCode
 
 logger = get_logger(__name__)
-
-
-def _validate_book_approved(book: Optional[Dict[str, Any]]) -> Dict[str, Any]:
-    """
-    Validate that book exists and is approved.
-
-    Args:
-        book: Book metadata dictionary or None
-
-    Returns:
-        Book metadata if valid
-
-    Raises:
-        ApiError: If book not found or not approved
-    """
-    if not book:
-        raise ApiError(
-            error_code=ErrorCode.NOT_FOUND,
-            message="Book not found",
-        )
-
-    if book.get("status") != "APPROVED":
-        raise ApiError(
-            error_code=ErrorCode.FORBIDDEN,
-            message="Book is not approved for reading",
-        )
-
-    return book
-
-
-def _create_cloudfront_signed_url(
-    cloudfront_domain: str,
-    s3_key: str,
-    expires_in_seconds: int,
-    key_pair_id: str,
-    private_key: str,
-) -> str:
-    """
-    Create a CloudFront signed URL for accessing a file.
-
-    Args:
-        cloudfront_domain: CloudFront domain name
-        s3_key: S3 object key
-        expires_in_seconds: URL expiration time in seconds
-        key_pair_id: CloudFront key pair ID
-        private_key: CloudFront private key (base64 encoded)
-
-    Returns:
-        Signed URL
-
-    Raises:
-        ApiError: If URL generation fails
-    """
-    try:
-        # Decode private key from base64
-        private_key_bytes = base64.b64decode(private_key)
-
-        # Create CloudFront signer
-        signer = CloudFrontSigner(key_pair_id, lambda message: private_key_bytes)
-
-        # Build URL
-        url = f"https://{cloudfront_domain}/{s3_key}"
-
-        # Generate signed URL
-        expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in_seconds)
-        signed_url = signer.generate_presigned_url(
-            url,
-            date_less_than=expires_at,
-        )
-
-        return signed_url
-    except Exception as err:
-        raise ApiError(
-            error_code=ErrorCode.INTERNAL_ERROR,
-            message="Failed to generate read URL",
-        )
 
 
 def _get_env_or_error(name: str) -> str:
     """Get environment variable or raise error if not set."""
     value = os.getenv(name)
     if not value:
-        raise ApiError(
-            error_code=ErrorCode.INTERNAL_ERROR,
-            message=f"Missing required environment variable: {name}",
-        )
+        raise ValueError(f"Missing required environment variable: {name}")
     return value
 
 
-@lambda_handler_wrapper
-def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+def _generate_signed_url(
+    cloudfront_domain: str,
+    key_pair_id: str,
+    private_key: str,
+    book_id: str,
+    expiry_hours: int = 1,
+) -> str:
     """
-    AWS Lambda handler for getReadUrl.
+    Generate CloudFront signed URL using RSA-SHA1.
 
-    Expects an API Gateway HTTP API event with:
-    - Path parameter: bookId
-    - JWT authorization from Cognito
+    Args:
+        cloudfront_domain: CloudFront domain name
+        key_pair_id: CloudFront key pair ID
+        private_key: CloudFront private key (PEM format)
+        book_id: Book ID
+        expiry_hours: URL expiry time in hours
 
     Returns:
-    - 200: Signed CloudFront URL
-    - 401: Unauthorized
-    - 403: Book not approved
-    - 404: Book not found
-    - 500: Internal error
+        Signed CloudFront URL
     """
-    # 1) Auth
-    user_id, user_email = extract_and_validate_user(event)
+    try:
+        from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography.hazmat.primitives.asymmetric import padding
+        from cryptography.hazmat.backends import default_backend
+    except ImportError:
+        raise ImportError("cryptography library required for CloudFront signing")
 
-    # 2) Extract book ID from path
-    path_params = event.get("pathParameters") or {}
-    book_id = path_params.get("bookId")
-    if not book_id:
-        raise ApiError(
-            error_code=ErrorCode.INVALID_REQUEST,
-            message="Missing bookId path parameter",
-        )
+    # Construct resource path
+    resource_path = f"https://{cloudfront_domain}/public/books/{book_id}/*"
 
-    book_id = validate_string_field(book_id, "bookId", min_length=1)
+    # Calculate expiry timestamp
+    from datetime import timezone
+    expiry_time = datetime.now(timezone.utc) + timedelta(hours=expiry_hours)
+    expiry_timestamp = int(expiry_time.timestamp())
 
-    # 3) Env config
-    table_name = _get_env_or_error("BOOKS_TABLE_NAME")
-    cloudfront_domain = _get_env_or_error("CLOUDFRONT_DOMAIN")
-    key_pair_id = _get_env_or_error("CLOUDFRONT_KEY_PAIR_ID")
-    private_key = _get_cloudfront_private_key()  # Retrieve from Secrets Manager
-    expires_in = int(os.getenv("READ_URL_TTL_SECONDS", "3600"))
+    # Create policy
+    policy = {
+        "Statement": [
+            {
+                "Resource": resource_path,
+                "Condition": {
+                    "DateLessThan": {
+                        "AWS:EpochTime": expiry_timestamp
+                    }
+                },
+            }
+        ]
+    }
 
-    # 4) Get book from DynamoDB
-    book = get_book_item(table_name, book_id)
-    book = _validate_book_approved(book)
+    policy_json = json.dumps(policy, separators=(",", ":"))
+    policy_b64 = base64.b64encode(policy_json.encode()).decode()
 
-    # 5) Generate CloudFront signed URL
-    s3_key = book.get("s3Key")
-    if not s3_key:
-        raise ApiError(
+    # Sign policy
+    private_key_obj = serialization.load_pem_private_key(
+        private_key.encode(),
+        password=None,
+        backend=default_backend(),
+    )
+
+    signature = private_key_obj.sign(
+        policy_b64.encode(),
+        padding.PKCS1v15(),
+        hashes.SHA1(),
+    )
+    signature_b64 = base64.b64encode(signature).decode()
+
+    # Build signed URL
+    signed_url = (
+        f"https://{cloudfront_domain}/public/books/{book_id}/*"
+        f"?Policy={policy_b64}"
+        f"&Signature={signature_b64}"
+        f"&Key-Pair-Id={key_pair_id}"
+    )
+
+    return signed_url
+
+
+def _get_book_file_path(book_id: str, table_name: str) -> Optional[str]:
+    """
+    Get book file path from DynamoDB.
+
+    Args:
+        book_id: Book ID
+        table_name: DynamoDB table name
+
+    Returns:
+        File path (e.g., public/books/book-123/book.pdf) or None if not found
+    """
+    try:
+        item = get_book_metadata(table_name, book_id)
+        if not item:
+            return None
+
+        # Check if book is approved
+        if item.get("status") != "APPROVED":
+            logger.warning(f"Book {book_id} is not approved (status: {item.get('status')})")
+            return None
+
+        # Get file path from metadata
+        file_path = item.get("file_path")
+        if not file_path:
+            logger.warning(f"Book {book_id} has no file_path in metadata")
+            return None
+
+        return file_path
+    except Exception as e:
+        logger.error(f"Error getting book metadata: {str(e)}")
+        return None
+
+
+def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+    """
+    Lambda handler for GET /books/{bookId}/read-url
+
+    Args:
+        event: API Gateway event
+        context: Lambda context
+
+    Returns:
+        Response with signed URL or error
+    """
+    try:
+        # Extract book ID from path
+        book_id = event.get("pathParameters", {}).get("bookId")
+        if not book_id:
+            error_body = build_error_response(
+                error_code=ErrorCode.INVALID_REQUEST,
+                message="Missing bookId in path",
+            )
+            return api_response(status_code=400, body=error_body)
+
+        logger.info(f"Generating read URL for book {book_id}")
+
+        # Get environment variables
+        cloudfront_domain = _get_env_or_error("CLOUDFRONT_DOMAIN")
+        table_name = _get_env_or_error("BOOKS_TABLE_NAME")
+        
+        # CloudFront credentials (optional - if not provided, return direct S3 URL)
+        key_pair_id = os.getenv("CLOUDFRONT_KEY_PAIR_ID")
+        private_key_b64 = os.getenv("CLOUDFRONT_PRIVATE_KEY")
+
+        # Check if book exists and is approved
+        file_path = _get_book_file_path(book_id, table_name)
+        if not file_path:
+            error_body = build_error_response(
+                error_code=ErrorCode.NOT_FOUND,
+                message=f"Book {book_id} not found or not approved",
+            )
+            return api_response(status_code=404, body=error_body)
+
+        # Generate signed URL
+        if key_pair_id and private_key_b64:
+            # Use CloudFront signed URL if credentials provided
+            try:
+                private_key = base64.b64decode(private_key_b64).decode()
+            except Exception as e:
+                logger.error(f"Error decoding private key: {str(e)}")
+                error_body = build_error_response(
+                    error_code=ErrorCode.INTERNAL_ERROR,
+                    message="Invalid CloudFront private key",
+                )
+                return api_response(status_code=500, body=error_body)
+
+            signed_url = _generate_signed_url(
+                cloudfront_domain=cloudfront_domain,
+                key_pair_id=key_pair_id,
+                private_key=private_key,
+                book_id=book_id,
+                expiry_hours=1,
+            )
+        else:
+            # Fallback: Return direct CloudFront URL (no signing)
+            logger.warning("CloudFront credentials not provided, returning unsigned URL")
+            signed_url = f"https://{cloudfront_domain}/public/books/{book_id}/*"
+
+        logger.info(f"Generated signed URL for book {book_id}")
+
+        return {
+            "statusCode": 200,
+            "body": json.dumps({
+                "bookId": book_id,
+                "url": signed_url,
+                "expiresIn": 3600,  # 1 hour in seconds
+            }),
+        }
+
+    except ValueError as e:
+        logger.error(f"Configuration error: {str(e)}")
+        error_body = build_error_response(
             error_code=ErrorCode.INTERNAL_ERROR,
-            message="Book metadata missing S3 key",
+            message="Server configuration error",
         )
-
-    signed_url = _create_cloudfront_signed_url(
-        cloudfront_domain=cloudfront_domain,
-        s3_key=s3_key,
-        expires_in_seconds=expires_in,
-        key_pair_id=key_pair_id,
-        private_key=private_key,
-    )
-
-    # 6) Log action
-    logger.info(
-        f"Read URL generated for book {book_id}",
-        extra={
-            "requestId": context.request_id if hasattr(context, "request_id") else "unknown",
-            "userId": user_id,
-            "action": "GET_READ_URL",
-            "status": "SUCCESS",
-            "bookId": book_id,
-        },
-    )
-
-    # 7) Success response
-    return api_response(
-        200,
-        {
-            "readUrl": signed_url,
-            "expiresIn": expires_in,
-            "bookId": book_id,
-        },
-    )
+        return api_response(status_code=500, body=error_body)
+    except Exception as e:
+        logger.error(f"Error generating read URL: {str(e)}", exc_info=True)
+        error_body = build_error_response(
+            error_code=ErrorCode.INTERNAL_ERROR,
+            message="Internal server error",
+        )
+        return api_response(status_code=500, body=error_body)
