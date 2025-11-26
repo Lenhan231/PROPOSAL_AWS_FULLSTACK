@@ -16,11 +16,6 @@ const nextConfig = {
       },
     ],
   },
-  
-  // Disable static optimization for pages that use AuthContext
-  experimental: {
-    runtime: 'nodejs',
-  },
 };
 
 module.exports = nextConfig;
