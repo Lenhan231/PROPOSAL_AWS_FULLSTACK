@@ -58,27 +58,20 @@ if (typeof window !== "undefined") {
 ### GET `/books/search`
 
 **Query params:**
-- `title` (optional): Search by book title
-- `author` (optional): Search by author name
-- `page` (default: 1)
-- `pageSize` (default: 20)
+- `q` (optional): Search query (searches in title, author, keywords)
+- `limit` (default: 10): Maximum number of results
 
 **Response:**
 ```json
 {
-  "data": [
+  "books": [
     {
       "bookId": "uuid",
       "title": "Book Title",
       "author": "Author Name",
       "description": "Book description"
     }
-  ],
-  "meta": {
-    "total": 45,
-    "page": 1,
-    "pageSize": 20
-  }
+  ]
 }
 ```
 
@@ -90,10 +83,12 @@ if (typeof window !== "undefined") {
 **Response:**
 ```json
 {
-  "readUrl": "https://d123.cloudfront.net/public/books/uuid/book.pdf?Expires=...",
+  "url": "https://d123.cloudfront.net/public/books/uuid/book.pdf?Expires=...",
   "expiresIn": 3600
 }
 ```
+
+**Note:** The response uses `url` instead of `readUrl`. The frontend handles both formats for compatibility.
 
 **Error responses:**
 - `403`: Book not approved or user unauthorized

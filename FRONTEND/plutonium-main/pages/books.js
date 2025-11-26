@@ -131,7 +131,7 @@ export default function BooksPage() {
               </button>
             </div>
             <p className="text-sm text-center text-gray-500 dark:text-gray-400">
-              {searchQuery ? "Để xem tất cả sách, xóa từ khóa và tìm kiếm" : "Lưu ý: Chỉ tìm kiếm theo một tiêu chí tại một thời điểm"}
+              {searchQuery ? "Để xem tất cả sách, xóa từ khóa và tìm kiếm lại" : "Tìm kiếm theo tên sách, tác giả hoặc từ khóa"}
             </p>
           </form>
         </div>
