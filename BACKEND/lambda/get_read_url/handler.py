@@ -21,8 +21,11 @@ Environment variables:
 import json
 import os
 import base64
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
+from urllib.parse import urlencode, quote
+
+from botocore.signers import CloudFrontSigner
 
 from shared.logger import get_logger
 from shared.dynamodb import get_book_metadata
@@ -39,25 +42,42 @@ def _get_env_or_error(name: str) -> str:
     return value
 
 
+def _build_resource_url(
+    cloudfront_domain: str,
+    file_path: str,
+    response_content_disposition: Optional[str] = None,
+    response_content_type: Optional[str] = None,
+) -> str:
+    """
+    Build the CloudFront resource URL (including optional response header overrides).
+    """
+    path = file_path.lstrip("/")
+    base_url = f"https://{cloudfront_domain}/{path}"
+
+    params = {}
+    if response_content_disposition:
+        params["response-content-disposition"] = response_content_disposition
+    if response_content_type:
+        params["response-content-type"] = response_content_type
+
+    if params:
+        query = urlencode(params, quote_via=quote)
+        return f"{base_url}?{query}"
+
+    return base_url
+
+
 def _generate_signed_url(
     cloudfront_domain: str,
     key_pair_id: str,
     private_key: str,
-    book_id: str,
+    file_path: str,
+    response_content_disposition: Optional[str] = None,
+    response_content_type: Optional[str] = None,
     expiry_hours: int = 1,
 ) -> str:
     """
-    Generate CloudFront signed URL using RSA-SHA1.
-
-    Args:
-        cloudfront_domain: CloudFront domain name
-        key_pair_id: CloudFront key pair ID
-        private_key: CloudFront private key (PEM format)
-        book_id: Book ID
-        expiry_hours: URL expiry time in hours
-
-    Returns:
-        Signed CloudFront URL
+    Generate CloudFront signed URL using RSA-SHA1 via CloudFrontSigner.
     """
     try:
         from cryptography.hazmat.primitives import hashes, serialization
@@ -66,54 +86,34 @@ def _generate_signed_url(
     except ImportError:
         raise ImportError("cryptography library required for CloudFront signing")
 
-    # Construct resource path
-    resource_path = f"https://{cloudfront_domain}/public/books/{book_id}/*"
-
-    # Calculate expiry timestamp
-    from datetime import timezone
-    expiry_time = datetime.now(timezone.utc) + timedelta(hours=expiry_hours)
-    expiry_timestamp = int(expiry_time.timestamp())
-
-    # Create policy
-    policy = {
-        "Statement": [
-            {
-                "Resource": resource_path,
-                "Condition": {
-                    "DateLessThan": {
-                        "AWS:EpochTime": expiry_timestamp
-                    }
-                },
-            }
-        ]
-    }
-
-    policy_json = json.dumps(policy, separators=(",", ":"))
-    policy_b64 = base64.b64encode(policy_json.encode()).decode()
-
-    # Sign policy
     private_key_obj = serialization.load_pem_private_key(
         private_key.encode(),
         password=None,
         backend=default_backend(),
     )
 
-    signature = private_key_obj.sign(
-        policy_b64.encode(),
-        padding.PKCS1v15(),
-        hashes.SHA1(),
-    )
-    signature_b64 = base64.b64encode(signature).decode()
+    def rsa_signer(message):
+        return private_key_obj.sign(
+            message,
+            padding.PKCS1v15(),
+            hashes.SHA1(),
+        )
 
-    # Build signed URL
-    signed_url = (
-        f"https://{cloudfront_domain}/public/books/{book_id}/*"
-        f"?Policy={policy_b64}"
-        f"&Signature={signature_b64}"
-        f"&Key-Pair-Id={key_pair_id}"
+    signer = CloudFrontSigner(key_pair_id, rsa_signer)
+
+    resource_url = _build_resource_url(
+        cloudfront_domain=cloudfront_domain,
+        file_path=file_path,
+        response_content_disposition=response_content_disposition,
+        response_content_type=response_content_type,
     )
 
-    return signed_url
+    expiry_time = datetime.now(timezone.utc) + timedelta(hours=expiry_hours)
+
+    return signer.generate_presigned_url(
+        resource_url,
+        date_less_than=expiry_time,
+    )
 
 
 def _get_book_file_path(book_id: str, table_name: str) -> Optional[str]:
@@ -179,6 +179,16 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # CloudFront credentials (optional - if not provided, return direct S3 URL)
         key_pair_id = os.getenv("CLOUDFRONT_KEY_PAIR_ID")
         private_key_b64 = os.getenv("CLOUDFRONT_PRIVATE_KEY")
+        # Optional response headers override (e.g., force download filename)
+        query_params = event.get("queryStringParameters") or {}
+        response_content_disposition = (
+            query_params.get("responseContentDisposition")
+            or query_params.get("response-content-disposition")
+        )
+        response_content_type = (
+            query_params.get("responseContentType")
+            or query_params.get("response-content-type")
+        )
 
         # Check if book exists and is approved
         file_path = _get_book_file_path(book_id, table_name)
@@ -188,6 +198,28 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 message=f"Book {book_id} not found or not approved",
             )
             return api_response(status_code=404, body=error_body)
+
+        # Default to inline viewing to avoid forced downloads
+        if not response_content_disposition:
+            file_name = os.path.basename(file_path)
+            response_content_disposition = f'inline; filename="{file_name}"'
+
+        # Default content-type from metadata (if available) or PDF
+        if not response_content_type:
+            # Try from metadata first
+            try:
+                from shared.dynamodb import get_book_metadata
+
+                book = get_book_metadata(table_name, book_id)
+                response_content_type = (
+                    book.get("mime_type")
+                    or book.get("mimeType")
+                )
+            except Exception:
+                response_content_type = None
+
+        if not response_content_type and file_path.lower().endswith(".pdf"):
+            response_content_type = "application/pdf"
 
         # Generate signed URL
         if key_pair_id and private_key_b64:
@@ -206,13 +238,20 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 cloudfront_domain=cloudfront_domain,
                 key_pair_id=key_pair_id,
                 private_key=private_key,
-                book_id=book_id,
+                file_path=file_path,
+                response_content_disposition=response_content_disposition,
+                response_content_type=response_content_type,
                 expiry_hours=1,
             )
         else:
             # Fallback: Return direct CloudFront URL (no signing)
             logger.warning("CloudFront credentials not provided, returning unsigned URL")
-            signed_url = f"https://{cloudfront_domain}/{file_path}"
+            signed_url = _build_resource_url(
+                cloudfront_domain=cloudfront_domain,
+                file_path=file_path,
+                response_content_disposition=response_content_disposition,
+                response_content_type=response_content_type,
+            )
 
         logger.info(f"Generated signed URL for book {book_id}")
 

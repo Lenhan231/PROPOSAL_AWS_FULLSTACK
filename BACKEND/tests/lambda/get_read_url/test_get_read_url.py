@@ -3,6 +3,7 @@ import sys
 import base64
 from pathlib import Path
 from typing import Any, Dict
+from urllib.parse import urlparse, parse_qs
 
 import boto3
 import pytest
@@ -54,6 +55,7 @@ def test_get_read_url_approved_book(get_read_url_context, books_table):
     """Test generating read URL for approved book."""
     table_name = get_read_url_context["table_name"]
     book_id = "test-book-123"
+    file_name = "test.pdf"
     
     # Create approved book in DynamoDB
     ddb_resource = boto3.resource("dynamodb", region_name=get_read_url_context["region"])
@@ -66,7 +68,8 @@ def test_get_read_url_approved_book(get_read_url_context, books_table):
         "title": "Test Book",
         "author": "Test Author",
         "status": "APPROVED",
-        "file_path": f"public/books/{book_id}/test.pdf",
+        "file_path": f"public/books/{book_id}/{file_name}",
+        "mime_type": "application/pdf",
     })
     
     # Create API Gateway event
@@ -87,10 +90,14 @@ def test_get_read_url_approved_book(get_read_url_context, books_table):
     
     # Verify URL format
     url = body["url"]
-    assert url.startswith("https://d123456.cloudfront.net/public/books/")
-    assert "Policy=" in url
+    assert url.startswith(f"https://d123456.cloudfront.net/public/books/{book_id}/{file_name}")
+    assert "Expires=" in url
     assert "Signature=" in url
     assert "Key-Pair-Id=" in url
+    parsed = urlparse(url)
+    qs = parse_qs(parsed.query)
+    assert qs.get("response-content-disposition") == [f'inline; filename="{file_name}"']
+    assert qs.get("response-content-type") == ["application/pdf"]
 
 
 def test_get_read_url_not_approved(get_read_url_context, books_table):
@@ -156,3 +163,45 @@ def test_get_read_url_missing_book_id(get_read_url_context):
     assert response["statusCode"] == 400
     body = json.loads(response["body"])
     assert "error" in body
+
+
+def test_get_read_url_with_content_disposition(get_read_url_context, books_table):
+    """Ensure response-content-disposition is included in signed URL."""
+    table_name = get_read_url_context["table_name"]
+    book_id = "test-book-789"
+    file_name = "another.pdf"
+    mime_type = "application/pdf"
+
+    ddb_resource = boto3.resource("dynamodb", region_name=get_read_url_context["region"])
+    table = ddb_resource.Table(table_name)
+    
+    table.put_item(Item={
+        "PK": f"BOOK#{book_id}",
+        "SK": "METADATA",
+        "bookId": book_id,
+        "title": "Test Book",
+        "author": "Test Author",
+        "status": "APPROVED",
+        "file_path": f"public/books/{book_id}/{file_name}",
+        "mime_type": mime_type,
+    })
+
+    disposition_value = f'attachment; filename="{file_name}"'
+    event = {
+        "pathParameters": {
+            "bookId": book_id,
+        },
+        "queryStringParameters": {
+            "response-content-disposition": disposition_value,
+        },
+    }
+
+    response = handler(event, context={})
+
+    assert response["statusCode"] == 200
+    body = json.loads(response["body"])
+    parsed = urlparse(body["url"])
+    qs = parse_qs(parsed.query)
+
+    assert qs.get("response-content-disposition") == [disposition_value]
+    assert qs.get("response-content-type") == [mime_type]

@@ -54,7 +54,7 @@ class CdnStack(Stack):
                     target_origin_id="S3Origin",
                     viewer_protocol_policy="redirect-to-https",
                     forwarded_values=cloudfront.CfnDistribution.ForwardedValuesProperty(
-                        query_string=False,
+                        query_string=True,
                         cookies=cloudfront.CfnDistribution.CookiesProperty(forward="none"),
                     ),
                 )
