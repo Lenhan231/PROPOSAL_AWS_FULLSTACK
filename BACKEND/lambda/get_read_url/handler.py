@@ -212,7 +212,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         else:
             # Fallback: Return direct CloudFront URL (no signing)
             logger.warning("CloudFront credentials not provided, returning unsigned URL")
-            signed_url = f"https://{cloudfront_domain}/public/books/{book_id}/*"
+            signed_url = f"https://{cloudfront_domain}/{file_path}"
 
         logger.info(f"Generated signed URL for book {book_id}")
 

@@ -34,20 +34,6 @@ class BucketPolicyStack(Stack):
         else:
             raise ValueError("storage_stack_name is required")
 
-        # Import distribution ID from CdnStack export
-        if cdn_stack_name:
-            distribution_id = Fn.import_value(f"{cdn_stack_name}-Distribution-Id")
-            
-            # Add CloudFront policy to bucket
-            bucket.add_to_resource_policy(
-                iam.PolicyStatement(
-                    actions=["s3:GetObject"],
-                    resources=[bucket.arn_for_objects("public/books/*")],
-                    principals=[iam.ServicePrincipal("cloudfront.amazonaws.com")],
-                    conditions={
-                        "StringEquals": {
-                            "AWS:SourceArn": f"arn:aws:cloudfront::{self.account}:distribution/{distribution_id}"
-                        }
-                    }
-                )
-            )
+        # Note: OAC (Origin Access Control) automatically handles bucket policy
+        # CloudFront will add the necessary policy when distribution is created
+        # No manual policy needed for OAC

@@ -74,7 +74,14 @@ class CdnStack(Stack):
             value=distribution.ref,
             export_name=f"{construct_id}-Distribution-Id",
         )
+        CfnOutput(
+            self,
+            "OACId",
+            value=oac.attr_id,
+            export_name=f"{construct_id}-OAC-Id",
+        )
 
         # Export for other stacks
         self.distribution = distribution
         self.distribution_domain = distribution.attr_domain_name
+        self.oac_id = oac.attr_id

@@ -201,6 +201,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             book_id=book_id,
             status=status,
             mime_type=mime_type,
+            file_path=dest_key,
         )
 
         logger.info(f"Book {book_id}: Status updated to {status}")
