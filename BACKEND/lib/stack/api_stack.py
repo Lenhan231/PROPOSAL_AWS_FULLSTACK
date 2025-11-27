@@ -189,6 +189,53 @@ class ApiStack(Stack):
         if books_table:
             books_table.grant_read_data(search_books_fn)
 
+        # listPendingBooks Lambda
+        list_pending_books_fn = _lambda.Function(
+            self,
+            "ListPendingBooksFn",
+            runtime=_lambda.Runtime.PYTHON_3_12,
+            handler="list_pending_books.handler.handler",
+            code=_lambda.Code.from_asset(
+                "./lambda",
+                exclude=["**/__pycache__", "*.pyc", ".pytest_cache", "tests"],
+            ),
+            timeout=Duration.seconds(30),
+            memory_size=256,
+            environment={
+                "BOOKS_TABLE_NAME": books_table.table_name if books_table else "OnlineLibrary",
+            },
+        )
+        lambdas["listPendingBooks"] = list_pending_books_fn
+
+        # Grant permissions
+        if books_table:
+            books_table.grant_read_data(list_pending_books_fn)
+
+        # approveBook Lambda
+        approve_book_fn = _lambda.Function(
+            self,
+            "ApproveBookFn",
+            runtime=_lambda.Runtime.PYTHON_3_12,
+            handler="approve_book.handler.handler",
+            code=_lambda.Code.from_asset(
+                "./lambda",
+                exclude=["**/__pycache__", "*.pyc", ".pytest_cache", "tests"],
+            ),
+            timeout=Duration.seconds(30),
+            memory_size=256,
+            environment={
+                "BOOKS_TABLE_NAME": books_table.table_name if books_table else "OnlineLibrary",
+                "UPLOADS_BUCKET_NAME": uploads_bucket.bucket_name if uploads_bucket else "uploads",
+            },
+        )
+        lambdas["approveBook"] = approve_book_fn
+
+        # Grant permissions
+        if books_table:
+            books_table.grant_read_write_data(approve_book_fn)
+        if uploads_bucket:
+            uploads_bucket.grant_read_write(approve_book_fn)
+
         # Note: validate_mime_type Lambda moved to ProcessingStack
         # to avoid cyclic dependencies with S3 event notifications
 
@@ -198,9 +245,9 @@ class ApiStack(Stack):
             ("/books/{bookId}/read-url", apigw.HttpMethod.GET, get_read_url_fn),
             ("/books/search", apigw.HttpMethod.GET, search_books_fn),
             ("/books/my-uploads", apigw.HttpMethod.GET, None),  # TODO
-            ("/admin/books/pending", apigw.HttpMethod.GET, None),  # TODO
-            ("/admin/books/{bookId}/approve", apigw.HttpMethod.POST, None),  # TODO
-            ("/admin/books/{bookId}/reject", apigw.HttpMethod.POST, None),  # TODO
+            ("/admin/books/pending", apigw.HttpMethod.GET, list_pending_books_fn),
+            ("/admin/books/{bookId}/approve", apigw.HttpMethod.POST, approve_book_fn),
+            ("/admin/books/{bookId}/reject", apigw.HttpMethod.POST, approve_book_fn),
         ]
 
         for path, method, handler_fn in routes:

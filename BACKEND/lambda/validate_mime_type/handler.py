@@ -186,9 +186,11 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         # Determine status and destination
         if is_valid:
-            status = "APPROVED"
-            dest_key = key.replace("uploads/", "public/books/")
+            # Valid file → move to staging, set status to PENDING for admin review
+            status = "PENDING"
+            dest_key = key.replace("uploads/", "staging/")
         else:
+            # Invalid file → move to quarantine, reject immediately
             status = "REJECTED"
             dest_key = key.replace("uploads/", "quarantine/")
 
