@@ -283,6 +283,23 @@ def generate_mock_cloudfront_signed_url(
     )
 
 
+@pytest.fixture
+def upload_test_context(monkeypatch, aws_region, s3_bucket, books_table):
+    """
+    High-level context for upload-related Lambdas.
+    """
+    monkeypatch.setenv("AWS_REGION", aws_region)
+    monkeypatch.setenv("UPLOAD_URL_TTL_SECONDS", "900")
+    monkeypatch.setenv("UPLOADS_BUCKET_NAME", s3_bucket["bucket_name"])
+    monkeypatch.setenv("BOOKS_TABLE_NAME", books_table.table_name)
+
+    return {
+        "region": aws_region,
+        "bucket_name": s3_bucket["bucket_name"],
+        "table_name": books_table.table_name,
+    }
+
+
 def put_draft_book_item_for_test(
     table,
     book_id: str,
@@ -429,6 +446,5 @@ def get_book_item_for_test(table_name: str, book_id: str) -> Dict[str, Any]:
     from shared.dynamodb import get_book_item
 
     return get_book_item(table_name, book_id)
-
 
 

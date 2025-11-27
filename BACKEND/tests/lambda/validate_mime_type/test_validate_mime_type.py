@@ -29,7 +29,7 @@ def validate_test_context(monkeypatch, aws_region, s3_bucket, books_table):
 
 
 def test_validate_mime_type_pdf_approved(validate_test_context, build_api_gateway_event):
-    """Test PDF file is approved and moved to public/books/"""
+    """Test PDF file is marked pending and moved to staging/"""
     region = validate_test_context["region"]
     bucket_name = validate_test_context["bucket_name"]
     table_name = validate_test_context["table_name"]
@@ -40,7 +40,7 @@ def test_validate_mime_type_pdf_approved(validate_test_context, build_api_gatewa
     book_id = "test-book-123"
     file_name = "test.pdf"
     source_key = f"uploads/{book_id}/{file_name}"
-    dest_key = f"public/books/{book_id}/{file_name}"
+    dest_key = f"staging/{book_id}/{file_name}"
 
     # Upload test file to S3
     s3_client.put_object(Bucket=bucket_name, Key=source_key, Body=pdf_content)
@@ -63,11 +63,11 @@ def test_validate_mime_type_pdf_approved(validate_test_context, build_api_gatewa
     assert response["statusCode"] == 200
     body = json.loads(response["body"])
     assert body["bookId"] == book_id
-    assert body["status"] == "APPROVED"
+    assert body["status"] == "PENDING"
     assert body["mimeType"] == "application/pdf"
 
-    # Verify file moved to public/books/
-    objects = s3_client.list_objects_v2(Bucket=bucket_name, Prefix="public/books/")
+    # Verify file moved to staging/
+    objects = s3_client.list_objects_v2(Bucket=bucket_name, Prefix="staging/")
     assert "Contents" in objects
     assert any(obj["Key"] == dest_key for obj in objects["Contents"])
 
@@ -80,7 +80,7 @@ def test_validate_mime_type_pdf_approved(validate_test_context, build_api_gatewa
     table = ddb_resource.Table(table_name)
     item = table.get_item(Key={"PK": f"BOOK#{book_id}", "SK": "METADATA"}).get("Item")
     assert item is not None
-    assert item["status"] == "APPROVED"
+    assert item["status"] == "PENDING"
     assert item.get("mime_type") == "application/pdf"
 
 

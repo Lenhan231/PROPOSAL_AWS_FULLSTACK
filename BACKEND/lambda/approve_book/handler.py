@@ -13,6 +13,7 @@ Environment variables:
 import json
 import os
 from typing import Any, Dict
+from datetime import datetime, timezone
 
 from shared.logger import get_logger
 from shared.dynamodb import update_book_status
@@ -149,10 +150,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             new_status = "APPROVED"
             # Move from staging/ to public/books/
             dest_key = file_path.replace("staging/", "public/books/")
+            approved_at = datetime.now(timezone.utc).isoformat()
+            rejected_at = None
         else:  # reject
             new_status = "REJECTED"
             # Move from staging/ to quarantine/
             dest_key = file_path.replace("staging/", "quarantine/")
+            approved_at = None
+            rejected_at = datetime.now(timezone.utc).isoformat()
 
         # Move file in S3
         _move_s3_object(bucket_name, file_path, dest_key)
@@ -163,8 +168,9 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             book_id=book_id,
             status=new_status,
             file_path=dest_key,
-            approved_at=None,  # Will be set by DynamoDB timestamp
-            approved_by=event.get("requestContext", {}).get("authorizer", {}).get("claims", {}).get("sub", "unknown"),
+            approvedAt=approved_at,
+            rejectedAt=rejected_at,
+            approvedBy=event.get("requestContext", {}).get("authorizer", {}).get("claims", {}).get("sub", "unknown"),
         )
 
         logger.info(f"Book {book_id}: {action}ed successfully")

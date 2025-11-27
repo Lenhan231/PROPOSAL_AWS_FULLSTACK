@@ -24,6 +24,7 @@ Environment variables:
 import json
 import os
 import mimetypes
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from shared.logger import get_logger
@@ -183,6 +184,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         mime_type, is_valid = _check_mime_type(file_content, file_name, allowed_mime_types)
 
         logger.info(f"Book {book_id}: MIME type = {mime_type}, Valid = {is_valid}")
+        processed_at = datetime.now(timezone.utc).isoformat()
 
         # Determine status and destination
         if is_valid:
@@ -204,6 +206,9 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             status=status,
             mime_type=mime_type,
             file_path=dest_key,
+            uploadedAt=processed_at,
+            rejectedReason=None if is_valid else "Invalid MIME type",
+            rejectedAt=None if is_valid else processed_at,
         )
 
         logger.info(f"Book {book_id}: Status updated to {status}")

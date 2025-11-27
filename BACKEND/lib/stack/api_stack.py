@@ -189,6 +189,27 @@ class ApiStack(Stack):
         if books_table:
             books_table.grant_read_data(search_books_fn)
 
+        # getMyUploads Lambda
+        get_my_uploads_fn = _lambda.Function(
+            self,
+            "GetMyUploadsFn",
+            runtime=_lambda.Runtime.PYTHON_3_12,
+            handler="get_my_uploads.handler.handler",
+            code=_lambda.Code.from_asset(
+                "./lambda",
+                exclude=["**/__pycache__", "*.pyc", ".pytest_cache", "tests"],
+            ),
+            timeout=Duration.seconds(30),
+            memory_size=256,
+            environment={
+                "BOOKS_TABLE_NAME": books_table.table_name if books_table else "OnlineLibrary",
+            },
+        )
+        lambdas["getMyUploads"] = get_my_uploads_fn
+
+        if books_table:
+            books_table.grant_read_data(get_my_uploads_fn)
+
         # listPendingBooks Lambda
         list_pending_books_fn = _lambda.Function(
             self,
@@ -244,7 +265,7 @@ class ApiStack(Stack):
             ("/books/upload-url", apigw.HttpMethod.POST, create_upload_url_fn),
             ("/books/{bookId}/read-url", apigw.HttpMethod.GET, get_read_url_fn),
             ("/books/search", apigw.HttpMethod.GET, search_books_fn),
-            ("/books/my-uploads", apigw.HttpMethod.GET, None),  # TODO
+            ("/books/my-uploads", apigw.HttpMethod.GET, get_my_uploads_fn),
             ("/admin/books/pending", apigw.HttpMethod.GET, list_pending_books_fn),
             ("/admin/books/{bookId}/approve", apigw.HttpMethod.POST, approve_book_fn),
             ("/admin/books/{bookId}/reject", apigw.HttpMethod.POST, approve_book_fn),

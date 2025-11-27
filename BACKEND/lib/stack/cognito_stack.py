@@ -60,6 +60,11 @@ class CognitoStack(Stack):
             id_token_validity=Duration.hours(1),
             access_token_validity=Duration.hours(1),
             refresh_token_validity=Duration.days(30),
+            read_attributes=cognito.ClientAttributes()
+                .with_standard_attributes(email=True, email_verified=True),
+            write_attributes=cognito.ClientAttributes() 
+                .with_standard_attributes(email=True),
+
         )
 
         # Admin Group

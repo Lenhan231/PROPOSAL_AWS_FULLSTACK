@@ -109,6 +109,7 @@ def put_draft_book_item(
 
     now = datetime.now(timezone.utc)
     ttl_seconds = int((now + timedelta(hours=72)).timestamp())
+    now_iso = now.isoformat()
 
     item: Dict[str, Any] = {
         "PK": f"BOOK#{book_id}",
@@ -122,6 +123,8 @@ def put_draft_book_item(
         "status": "UPLOADING",
         "fileSize": file_size,
         "s3Key": s3_key,
+        "createdAt": now_iso,
+        "uploadedAt": now_iso,
         "ttl": ttl_seconds,
         "GSI6PK": f"UPLOADER#{user_id}",
         "GSI6SK": f"BOOK#{book_id}",
