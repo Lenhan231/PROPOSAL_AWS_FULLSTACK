@@ -23,6 +23,7 @@ async function resolveToken(tokenOrGetter) {
  * @param {number} params.fileSize
  * @param {string} [params.title]
  * @param {string} [params.author]
+ * @param {string} [params.description]
  * @param {string} [apiUrl] - override API endpoint
  * @returns {Promise<{uploadUrl:string, bookId:string, expiresIn:number}>}
  */
@@ -36,6 +37,7 @@ export async function getUploadUrl(idTokenOrGetter, params = {}, apiUrl) {
 		fileSize: params.fileSize,
 		title: params.title || params.fileName,
 		author: params.author || '',
+		description: params.description || '',
 	};
 	const headers = {
 		'Content-Type': 'application/json',
@@ -187,4 +189,3 @@ export default {
 	notifyUploadComplete,
 	getAmplifyIdTokenGetter,
 };
-

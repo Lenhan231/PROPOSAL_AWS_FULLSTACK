@@ -153,6 +153,11 @@ export default function MyUploadsPage() {
 function UploadCard({ book, onToast, onDelete }) {
   const router = useRouter();
 
+  const getDescriptionSnippet = (desc) => {
+    if (!desc) return "Không có mô tả";
+    return desc.length > 120 ? desc.slice(0, 117) + "..." : desc;
+  };
+
   const getStatusBadge = (status) => {
     const badges = {
       UPLOADING: {
@@ -232,6 +237,12 @@ function UploadCard({ book, onToast, onDelete }) {
               {book.title}
             </h3>
             {getStatusBadge(book.status)}
+          </div>
+          <div className="flex flex-wrap gap-2 mb-2">
+            <span className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200">
+              <span>📝</span>
+              {getDescriptionSnippet(book.description)}
+            </span>
           </div>
           <p className="mb-2 text-sm text-gray-600 dark:text-gray-400">
             Tác giả: {book.author}

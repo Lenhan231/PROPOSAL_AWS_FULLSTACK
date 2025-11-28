@@ -323,6 +323,18 @@ function PendingBookCard({ book, onApprove, onReject }) {
     window.open(`/read/${book.bookId}`, '_blank');
   };
 
+  const getUploaderDisplay = () =>
+    book.uploaderEmail ||
+    book.uploader ||
+    book.userEmail ||
+    book.uploadedBy ||
+    book.ownerEmail ||
+    book.owner ||
+    book.userId ||
+    book.userSub ||
+    book.email ||
+    "Không rõ";
+
   return (
     <div className="p-6 transition-shadow bg-white border border-gray-200 rounded-xl dark:bg-gray-700 dark:border-gray-600 hover:shadow-lg">
       <div className="flex flex-col gap-4">
@@ -336,7 +348,7 @@ function PendingBookCard({ book, onApprove, onReject }) {
               <span className="font-medium">📖 Tác giả:</span> {book.author || "Không rõ"}
             </p>
             <p className="text-gray-600 dark:text-gray-400">
-              <span className="font-medium">👤 Người tải:</span> {book.uploaderEmail || book.uploader || "Không rõ"}
+              <span className="font-medium">👤 Người tải:</span> {getUploaderDisplay()}
             </p>
             <p className="text-gray-600 dark:text-gray-400">
               <span className="font-medium">📦 Kích thước:</span>{" "}
