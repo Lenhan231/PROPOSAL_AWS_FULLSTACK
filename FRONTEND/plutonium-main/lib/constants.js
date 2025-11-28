@@ -6,6 +6,7 @@ export const API_ENDPOINTS = {
   SEARCH_BOOKS: '/books/search',
   GET_READ_URL: (bookId) => `/books/${bookId}/read-url`,
   MY_UPLOADS: '/books/my-uploads',
+  DELETE_BOOK: (bookId) => `/books/${bookId}`,
   
   // Upload
   CREATE_UPLOAD_URL: '/books/upload-url',

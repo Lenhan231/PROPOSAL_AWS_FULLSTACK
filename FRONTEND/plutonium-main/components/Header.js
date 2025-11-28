@@ -110,18 +110,18 @@ export default function Header() {
             (navbarOpen ? " flex" : " hidden")
           }
         >
-          <div className="flex flex-wrap items-center justify-center pt-1 pl-2 ml-1 space-x-8 md:space-x-16 md:mx-auto md:pl-14">
-            <Link href="/books" className="text-black transition duration-300 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400">
+          <div className="flex flex-col md:flex-row md:flex-wrap items-center justify-center w-full md:w-auto pt-2 md:pt-1 pb-2 md:pb-0 space-y-3 md:space-y-0 md:space-x-8 lg:space-x-16 md:mx-auto">
+            <Link href="/books" className="text-base md:text-sm text-black transition duration-300 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 py-2 md:py-0">
               Khám phá
             </Link>
-            <Link href="/upload" className="text-black transition duration-300 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400">
+            <Link href="/upload" className="text-base md:text-sm text-black transition duration-300 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 py-2 md:py-0">
               Tải lên
             </Link>
-            <Link href="/my-uploads" className="text-black transition duration-300 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400">
+            <Link href="/my-uploads" className="text-base md:text-sm text-black transition duration-300 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 py-2 md:py-0">
               Sách của tôi
             </Link>
             {isAdmin && (
-              <Link href="/admin/pending" className="text-black transition duration-300 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 font-semibold">
+              <Link href="/admin/pending" className="text-base md:text-sm text-black transition duration-300 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 font-semibold py-2 md:py-0">
                 ⚙️ Admin
               </Link>
             )}
@@ -129,7 +129,7 @@ export default function Header() {
           <button
             aria-label="Toggle Dark Mode"
             type="button"
-            className="w-10 h-10 p-3 ml-5 mr-0 bg-gray-200 rounded md:ml-0 md:mr-5 dark:bg-gray-800"
+            className="w-10 h-10 p-3 mt-3 md:mt-0 ml-0 mr-0 bg-gray-200 rounded md:ml-0 md:mr-5 dark:bg-gray-800"
             onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
           >
             {mounted && (
@@ -162,13 +162,13 @@ export default function Header() {
           {/* Auth Section */}
           {user ? (
             // User is logged in - show email and logout
-            <div className="relative">
+            <div className="relative mt-3 md:mt-0">
               <button
                 onClick={() => setShowUserMenu(!showUserMenu)}
-                className="flex items-center space-x-2 px-3 py-1.5 text-black dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-md transition duration-300"
+                className="flex items-center space-x-2 px-3 py-2 md:py-1.5 text-black dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-md transition duration-300"
               >
-                <span className="text-sm">👤</span>
-                <span className="text-sm max-w-[150px] truncate">
+                <span className="text-base md:text-sm">👤</span>
+                <span className="text-base md:text-sm max-w-[150px] truncate">
                   {user.username || user.email || 'User'}
                 </span>
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -196,20 +196,20 @@ export default function Header() {
             </div>
           ) : (
             // User is not logged in - show login/signup buttons
-            <>
+            <div className="flex flex-col md:flex-row gap-3 md:gap-4 mt-3 md:mt-0 w-full md:w-auto px-4 md:px-0">
               <Link
                 href="/login"
-                className="invisible dark:hover:border-blue-500 hover:shadow-md transition duration-300 mr-4 text-black border px-3 py-1.5 rounded dark:text-gray-300 md:visible"
+                className="text-center text-base md:text-sm dark:hover:border-blue-500 hover:shadow-md transition duration-300 text-black border px-4 py-2 md:py-1.5 rounded dark:text-gray-300 border-gray-300 dark:border-gray-600"
               >
                 Đăng nhập
               </Link>
               <Link
                 href="/signup"
-                className="invisible md:visible px-3 py-1.5 transition-colors hover:bg-blue-700 text-white bg-blue-600 rounded"
+                className="text-center text-base md:text-sm px-4 py-2 md:py-1.5 transition-colors hover:bg-blue-700 text-white bg-blue-600 rounded"
               >
                 Đăng ký
               </Link>
-            </>
+            </div>
           )}
         </div>
       </div>

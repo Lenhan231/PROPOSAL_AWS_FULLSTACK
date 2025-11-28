@@ -50,8 +50,8 @@ export default function UploadPage() {
       return;
     }
 
-    if (!formData.title || !formData.author) {
-      alert('Vui lòng điền đầy đủ thông tin!');
+    if (!formData.title || !formData.author || !formData.description) {
+      alert('Vui lòng điền đầy đủ thông tin (bao gồm mô tả sách)!');
       return;
     }
 
@@ -75,14 +75,20 @@ export default function UploadPage() {
       console.log('Using ID token for upload request');
       console.log('File details:', { name: file.name, size: file.size, type: file.type });
 
-      // Step 1: Request presigned URL from backend
-      const { uploadUrl, bookId } = await getUploadUrl(idToken, {
+      const uploadData = {
         title: formData.title,
         author: formData.author,
         description: formData.description,
         fileName: file.name,
         fileSize: file.size,
-      });
+      };
+      
+      console.log('=== UPLOAD DATA SENT TO BACKEND ===');
+      console.log('Upload data:', uploadData);
+      console.log('Description:', formData.description);
+
+      // Step 1: Request presigned URL from backend
+      const { uploadUrl, bookId } = await getUploadUrl(idToken, uploadData);
 
       console.log('Got presigned URL, uploading to S3...', { bookId, uploadUrl: uploadUrl.substring(0, 100) + '...' });
 
@@ -173,7 +179,7 @@ export default function UploadPage() {
                 type="text"
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                className="w-full px-4 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg dark:bg-gray-700 dark:text-white dark:border-gray-600 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-3 text-base text-gray-900 bg-white border border-gray-300 rounded-lg dark:bg-gray-700 dark:text-white dark:border-gray-600 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="Nhập tên sách..."
                 required
               />
@@ -188,7 +194,7 @@ export default function UploadPage() {
                 type="text"
                 value={formData.author}
                 onChange={(e) => setFormData({ ...formData, author: e.target.value })}
-                className="w-full px-4 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg dark:bg-gray-700 dark:text-white dark:border-gray-600 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-3 text-base text-gray-900 bg-white border border-gray-300 rounded-lg dark:bg-gray-700 dark:text-white dark:border-gray-600 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="Nhập tên tác giả..."
                 required
               />
@@ -197,15 +203,19 @@ export default function UploadPage() {
             {/* Description */}
             <div>
               <label className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
-                Mô tả (tùy chọn)
+                Mô tả <span className="text-red-500">*</span>
               </label>
               <textarea
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 rows={4}
-                className="w-full px-4 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg dark:bg-gray-700 dark:text-white dark:border-gray-600 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Nhập mô tả về sách..."
+                required
+                className="w-full px-4 py-3 text-base text-gray-900 bg-white border border-gray-300 rounded-lg dark:bg-gray-700 dark:text-white dark:border-gray-600 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Nhập mô tả về sách (bắt buộc)..."
               />
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Viết vài dòng giới thiệu về nội dung, chủ đề, hoặc điểm nổi bật của sách
+              </p>
             </div>
 
             {/* Upload Progress */}

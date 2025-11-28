@@ -124,7 +124,15 @@ export default function MyUploadsPage() {
         ) : (
           <div className="space-y-4">
             {uploads.map((book) => (
-              <UploadCard key={book.bookId} book={book} onToast={showToast} />
+              <UploadCard 
+                key={book.bookId} 
+                book={book} 
+                onToast={showToast}
+                onDelete={(bookId) => {
+                  // Remove book from state immediately
+                  setUploads(uploads.filter(b => b.bookId !== bookId));
+                }}
+              />
             ))}
           </div>
         )}
@@ -142,14 +150,14 @@ export default function MyUploadsPage() {
   );
 }
 
-function UploadCard({ book, onToast }) {
+function UploadCard({ book, onToast, onDelete }) {
   const router = useRouter();
 
   const getStatusBadge = (status) => {
     const badges = {
       UPLOADING: {
-        text: "Đang xử lý",
-        className: "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300",
+        text: "Tải lên lại",
+        className: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300",
         icon: "🔄"
       },
       PENDING: {
@@ -185,6 +193,24 @@ function UploadCard({ book, onToast }) {
 
   const handleReadBook = () => {
     router.push(`/read/${book.bookId}`);
+  };
+
+  const handleDelete = async () => {
+    if (!confirm(`Bạn có chắc muốn xóa sách "${book.title}"?\n\nSách sẽ bị xóa vĩnh viễn và không thể khôi phục.`)) {
+      return;
+    }
+
+    try {
+      await api.deleteBook(book.bookId);
+      onToast(`Đã xóa sách "${book.title}"`, "success");
+      
+      // Remove from UI immediately without reload
+      onDelete(book.bookId);
+    } catch (err) {
+      console.error("Failed to delete book:", err);
+      const errorMsg = err.response?.data?.message || err.response?.data?.error || "Không thể xóa sách. Vui lòng thử lại.";
+      onToast(errorMsg, "error");
+    }
   };
 
   const formatDate = (dateString) => {
@@ -244,14 +270,19 @@ function UploadCard({ book, onToast }) {
             </div>
           )}
           {book.status === "UPLOADING" && (
-            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-              Đang xử lý file... Vui lòng đợi trong giây lát
-            </p>
+            <div className="p-3 mt-2 bg-orange-50 border border-orange-200 rounded-lg dark:bg-orange-900/20 dark:border-orange-800">
+              <p className="text-sm font-medium text-orange-800 dark:text-orange-300">
+                ⚠️ Lỗi: Traffic cao
+              </p>
+              <p className="mt-1 text-xs text-orange-700 dark:text-orange-400">
+                Hệ thống đang quá tải. Vui lòng tải lại trang sau vài phút hoặc liên hệ admin.
+              </p>
+            </div>
           )}
         </div>
 
         {/* Actions */}
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {book.status === "APPROVED" && (
             <button
               onClick={handleReadBook}
@@ -271,7 +302,7 @@ function UploadCard({ book, onToast }) {
               Đang chờ duyệt
             </div>
           )}
-          {(book.status === "REJECTED" || book.status === "REJECTED_INVALID_TYPE") && (
+          {(book.status === "REJECTED" || book.status === "REJECTED_INVALID_TYPE" || book.status === "UPLOADING") && (
             <Link
               href="/upload"
               className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white transition-colors bg-green-600 rounded-lg hover:bg-green-700"
@@ -282,6 +313,17 @@ function UploadCard({ book, onToast }) {
               Tải lên lại
             </Link>
           )}
+          
+          {/* Delete Button - Always show */}
+          <button
+            onClick={handleDelete}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white transition-colors bg-red-600 rounded-lg hover:bg-red-700"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+            Xóa
+          </button>
         </div>
       </div>
     </div>

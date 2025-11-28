@@ -26,6 +26,11 @@ export default function BooksPage() {
       setError("");
       const result = await api.searchBooks(params);
       
+      console.log("=== BOOKS API RESPONSE ===");
+      console.log("Books count:", result.books?.length);
+      console.log("Sample book:", result.books?.[0]);
+      console.log("All books descriptions:", result.books?.map(b => ({ title: b.title, description: b.description })));
+      
       // Backend returns { books: [...] } instead of { data: [...] }
       setBooks(result.books || []);
       setMeta({ total: result.books?.length || 0, limit: params.limit || 20 });
@@ -110,15 +115,15 @@ export default function BooksPage() {
             Khám phá sách
           </h1>
 
-          <form onSubmit={handleSearch} className="max-w-2xl mx-auto">
-            <div className="flex gap-4 mb-4">
+          <form onSubmit={handleSearch} className="max-w-2xl mx-auto px-4 md:px-0">
+            <div className="flex flex-col sm:flex-row gap-3 mb-4">
               {/* Search Input */}
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Tìm kiếm sách (tên sách, tác giả, từ khóa...)"
-                className="flex-1 px-4 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg dark:bg-gray-800 dark:text-white dark:border-gray-600 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="flex-1 px-4 py-3 sm:py-2 text-base sm:text-sm text-gray-900 bg-white border border-gray-300 rounded-lg dark:bg-gray-800 dark:text-white dark:border-gray-600 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 disabled={loading}
               />
 
@@ -126,7 +131,7 @@ export default function BooksPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="px-6 py-2 font-medium text-white transition-colors bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full sm:w-auto px-6 py-3 sm:py-2 text-base sm:text-sm font-medium text-white transition-colors bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? "Đang tìm..." : "Tìm kiếm"}
               </button>
@@ -211,17 +216,28 @@ function BookCard({ book, onError }) {
   return (
     <div className="p-6 transition-shadow bg-white border border-gray-200 rounded-xl dark:bg-gray-800 dark:border-gray-700 hover:shadow-lg">
       <h3 className="mb-2 text-xl font-semibold text-gray-900 dark:text-white">
-        {book.title}
+        {book.title || "Không có tiêu đề"}
       </h3>
-      <p className="mb-3 text-sm text-gray-600 dark:text-gray-400">
-        Tác giả: {book.author}
+      <p className="mb-2 text-sm text-gray-600 dark:text-gray-400">
+        📖 Tác giả: {book.author || "Không rõ"}
       </p>
-      <p className="mb-4 text-gray-700 dark:text-gray-300 line-clamp-3">
-        {book.description}
-      </p>
+      {book.uploaderEmail && (
+        <p className="mb-2 text-xs text-gray-500 dark:text-gray-500">
+          👤 Người tải: {book.uploaderEmail}
+        </p>
+      )}
+      {book.description ? (
+        <p className="mb-4 text-sm text-gray-700 dark:text-gray-300 line-clamp-3">
+          {book.description}
+        </p>
+      ) : (
+        <p className="mb-4 text-sm italic text-gray-500 dark:text-gray-500">
+          Chưa có mô tả
+        </p>
+      )}
       <button
         onClick={handleRead}
-        className="inline-flex items-center justify-center w-full px-4 py-2 text-sm font-medium text-white transition-colors bg-blue-600 rounded-lg hover:bg-blue-700"
+        className="inline-flex items-center justify-center w-full px-4 py-3 text-base sm:text-sm font-medium text-white transition-colors bg-blue-600 rounded-lg hover:bg-blue-700"
       >
         <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />

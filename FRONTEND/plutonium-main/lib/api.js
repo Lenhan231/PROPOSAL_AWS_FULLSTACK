@@ -102,6 +102,15 @@ export const api = {
     return response.data;
   },
 
+  /**
+   * Delete a book (Owner or Admin only)
+   * @param {string} bookId
+   */
+  deleteBook: async (bookId) => {
+    const response = await apiClient.delete(API_ENDPOINTS.DELETE_BOOK(bookId));
+    return response.data;
+  },
+
   // ========== Upload ==========
   
   /**
