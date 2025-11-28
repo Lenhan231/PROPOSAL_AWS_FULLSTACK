@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/PROPOSAL_AWS_FULLSTACK.iml" filepath="$PROJECT_DIR$/.idea/PROPOSAL_AWS_FULLSTACK.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/PROPOSAL_AWS_FULLSTACK_V1.iml" filepath="$PROJECT_DIR$/.idea/PROPOSAL_AWS_FULLSTACK_V1.iml" />
     </modules>
   </component>
 </project>
