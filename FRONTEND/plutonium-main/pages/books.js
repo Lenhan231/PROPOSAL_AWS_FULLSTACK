@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import Head from "next/head";
 import Link from "next/link";
+import { useRouter } from "next/router";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import { api } from "../lib/api";
@@ -194,57 +195,17 @@ export default function BooksPage() {
 }
 
 function BookCard({ book, onError }) {
-  const [loading, setLoading] = useState(false);
+  const router = useRouter();
 
-  const handleRead = async () => {
+  const handleRead = () => {
     // Check if this is mock data
     if (book.bookId.startsWith("mock-")) {
       onError("⚠️ Backend API chưa được triển khai. Chức năng đọc sách sẽ khả dụng sau khi triển khai Lambda getReadUrl.", "error");
       return;
     }
 
-    try {
-      setLoading(true);
-      const result = await api.getReadUrl(book.bookId);
-      
-      // Handle both 'url' and 'readUrl' response formats
-      const signedUrl = result.url || result.readUrl;
-      
-      if (signedUrl) {
-        // Open the signed URL in a new tab
-        window.open(signedUrl, "_blank", "noopener,noreferrer");
-      } else {
-        onError("Không thể lấy URL đọc sách", "error");
-      }
-    } catch (err) {
-      console.error("Failed to get read URL:", err);
-      console.error("Error details:", {
-        status: err.response?.status,
-        data: err.response?.data,
-        message: err.message
-      });
-      
-      const errorMsg = err.response?.data?.message || err.response?.data?.error || err.message;
-      
-      if (err.response?.status === 404) {
-        // Check if it's a "not found/not approved" error from backend
-        if (errorMsg.includes("not found") || errorMsg.includes("not approved")) {
-          onError("Sách không tồn tại hoặc chưa được duyệt. Vui lòng chọn sách khác.", "error");
-        } else {
-          onError("Backend API chưa được triển khai. Vui lòng triển khai Lambda getReadUrl trước.", "error");
-        }
-      } else if (err.code === "ERR_NETWORK") {
-        onError("Lỗi kết nối. Kiểm tra backend API đang chạy.", "error");
-      } else if (err.response?.status === 403) {
-        onError("Bạn không có quyền truy cập sách này", "error");
-      } else if (err.response?.status === 500) {
-        onError(`Lỗi server: ${errorMsg}. Kiểm tra CloudWatch Logs để xem chi tiết.`, "error");
-      } else {
-        onError(errorMsg || "Không thể đọc sách. Vui lòng thử lại sau", "error");
-      }
-    } finally {
-      setLoading(false);
-    }
+    // Redirect to reader page
+    router.push(`/read/${book.bookId}`);
   };
 
   return (
@@ -260,25 +221,12 @@ function BookCard({ book, onError }) {
       </p>
       <button
         onClick={handleRead}
-        disabled={loading}
-        className="inline-flex items-center justify-center w-full px-4 py-2 text-sm font-medium text-white transition-colors bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+        className="inline-flex items-center justify-center w-full px-4 py-2 text-sm font-medium text-white transition-colors bg-blue-600 rounded-lg hover:bg-blue-700"
       >
-        {loading ? (
-          <>
-            <svg className="w-4 h-4 mr-2 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            Đang tải...
-          </>
-        ) : (
-          <>
-            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-            </svg>
-            Đọc sách
-          </>
-        )}
+        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+        </svg>
+        Đọc sách
       </button>
     </div>
   );

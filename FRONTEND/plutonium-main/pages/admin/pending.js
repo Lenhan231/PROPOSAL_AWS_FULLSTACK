@@ -14,6 +14,7 @@ export async function getServerSideProps() {
 
 export default function AdminPendingPage() {
   const [books, setBooks] = useState([]);
+  const [totalBooks, setTotalBooks] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [toast, setToast] = useState({ show: false, message: "", type: "success" });
@@ -22,6 +23,7 @@ export default function AdminPendingPage() {
 
   useEffect(() => {
     loadPendingBooks();
+    loadTotalBooks();
   }, []);
 
   const loadPendingBooks = async () => {
@@ -29,12 +31,40 @@ export default function AdminPendingPage() {
       setLoading(true);
       setError("");
       const result = await api.getPendingBooks();
-      setBooks(result.books || []);
+      console.log("=== ADMIN PENDING BOOKS ===");
+      console.log("API Response:", result);
+      console.log("Books count (raw):", result.books?.length || 0);
+      
+      // Filter client-side to only show PENDING books
+      // Backend now includes status field (defaults to PENDING if missing)
+      const pendingOnly = (result.books || []).filter(book => book.status === 'PENDING');
+      console.log("Books count (filtered PENDING):", pendingOnly.length);
+      
+      if (pendingOnly.length !== result.books?.length) {
+        console.warn("⚠️ Backend returned non-PENDING books! Filtering on client side.");
+        const nonPending = result.books.filter(b => b.status !== 'PENDING');
+        console.log("Non-PENDING books:", nonPending.map(b => ({ id: b.bookId, status: b.status, title: b.title })));
+      }
+      
+      setBooks(pendingOnly);
     } catch (err) {
       console.error("Failed to load pending books:", err);
+      console.error("Error response:", err.response?.data);
+      console.error("Error status:", err.response?.status);
       setError(err.response?.data?.message || "Không thể tải danh sách sách chờ duyệt");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadTotalBooks = async () => {
+    try {
+      // Get all approved books from search
+      const result = await api.searchBooks({ limit: 1000 });
+      setTotalBooks(result.books?.length || 0);
+    } catch (err) {
+      console.error("Failed to load total books:", err);
+      // Silent fail, just keep totalBooks as 0
     }
   };
 
@@ -44,11 +74,17 @@ export default function AdminPendingPage() {
     try {
       await api.approveBook(bookId);
       showToast(`Đã duyệt sách "${title}"`, "success");
-      // Remove from list or reload
-      setBooks(books.filter(b => b.bookId !== bookId));
+      // Reload entire list to ensure sync with backend
+      await loadPendingBooks();
+      await loadTotalBooks();
     } catch (err) {
-      console.error("Failed to approve book:", err);
-      showToast(err.response?.data?.message || "Không thể duyệt sách", "error");
+      console.error("=== APPROVE ERROR DETAILS ===");
+      console.error("Full error:", err);
+      console.error("Response data:", err.response?.data);
+      console.error("Response status:", err.response?.status);
+      
+      const errorMsg = err.response?.data?.message || err.response?.data?.error || "Không thể duyệt sách";
+      showToast(errorMsg, "error");
     }
   };
 
@@ -65,14 +101,20 @@ export default function AdminPendingPage() {
 
     try {
       await api.rejectBook(rejectModal.bookId, rejectReason);
-      showToast(`Đã từ chối sách "${rejectModal.title}"`, "success");
-      // Remove from list or reload
+      showToast(`Đã từ chối sách "${rejectModal.title}" với lý do: "${rejectReason}"`, "success");
+      // Remove from list
       setBooks(books.filter(b => b.bookId !== rejectModal.bookId));
       setRejectModal({ show: false, bookId: null, title: "" });
       setRejectReason("");
     } catch (err) {
-      console.error("Failed to reject book:", err);
-      showToast(err.response?.data?.message || "Không thể từ chối sách", "error");
+      console.error("=== REJECT ERROR DETAILS ===");
+      console.error("Full error:", err);
+      console.error("Response data:", err.response?.data);
+      console.error("Response status:", err.response?.status);
+      console.error("Response headers:", err.response?.headers);
+      
+      const errorMsg = err.response?.data?.message || err.response?.data?.error || err.response?.data || "Không thể từ chối sách";
+      showToast(typeof errorMsg === 'string' ? errorMsg : JSON.stringify(errorMsg), "error");
     }
   };
 
@@ -129,16 +171,16 @@ export default function AdminPendingPage() {
                 color="yellow"
               />
               <StatCard
-                title="Tổng sách"
-                value={books.length}
+                title="Tổng sách (đã duyệt)"
+                value={totalBooks}
                 icon="📚"
                 color="green"
               />
               <StatCard
-                title="Trạng thái"
-                value="Active"
-                icon="✅"
-                color="green"
+                title="Cần xử lý"
+                value={books.length > 0 ? "Có việc" : "Trống"}
+                icon={books.length > 0 ? "🔔" : "✅"}
+                color={books.length > 0 ? "red" : "green"}
               />
             </div>
           )}
@@ -261,6 +303,7 @@ function StatCard({ title, value, icon, color }) {
 
 function PendingBookCard({ book, onApprove, onReject }) {
   const formatDate = (dateString) => {
+    if (!dateString) return "Không rõ";
     return new Date(dateString).toLocaleDateString("vi-VN", {
       year: "numeric",
       month: "long",
@@ -271,40 +314,62 @@ function PendingBookCard({ book, onApprove, onReject }) {
   };
 
   const formatFileSize = (bytes) => {
+    if (!bytes || isNaN(bytes)) return "Không rõ";
     return (bytes / 1024 / 1024).toFixed(2) + " MB";
+  };
+
+  const handlePreview = () => {
+    // Open book preview in new tab
+    window.open(`/read/${book.bookId}`, '_blank');
   };
 
   return (
     <div className="p-6 transition-shadow bg-white border border-gray-200 rounded-xl dark:bg-gray-700 dark:border-gray-600 hover:shadow-lg">
-      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+      <div className="flex flex-col gap-4">
+        {/* Book Info */}
         <div className="flex-1">
-          <h3 className="mb-2 text-xl font-semibold text-gray-900 dark:text-white">
-            {book.title}
+          <h3 className="mb-3 text-xl font-semibold text-gray-900 dark:text-white">
+            {book.title || "Không có tiêu đề"}
           </h3>
-          <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
-            <p>
-              <span className="font-medium">Tác giả:</span> {book.author}
+          <div className="grid gap-2 text-sm md:grid-cols-2">
+            <p className="text-gray-600 dark:text-gray-400">
+              <span className="font-medium">📖 Tác giả:</span> {book.author || "Không rõ"}
             </p>
-            <p>
-              <span className="font-medium">Người tải:</span> {book.uploaderEmail || book.uploader}
+            <p className="text-gray-600 dark:text-gray-400">
+              <span className="font-medium">👤 Người tải:</span> {book.uploaderEmail || book.uploader || "Không rõ"}
             </p>
-            <p>
-              <span className="font-medium">Kích thước:</span>{" "}
+            <p className="text-gray-600 dark:text-gray-400">
+              <span className="font-medium">📦 Kích thước:</span>{" "}
               {formatFileSize(book.fileSize)}
             </p>
+            <p className="text-gray-600 dark:text-gray-400">
+              <span className="font-medium">📅 Tải lên:</span> {formatDate(book.uploadedAt || book.createdAt)}
+            </p>
           </div>
+          {book.description && (
+            <p className="mt-3 text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
+              <span className="font-medium">📝 Mô tả:</span> {book.description}
+            </p>
+          )}
         </div>
 
-        <div className="flex gap-3">
+        {/* Actions */}
+        <div className="flex flex-wrap gap-3">
+          <button
+            onClick={handlePreview}
+            className="flex items-center gap-2 px-6 py-3 font-medium text-blue-600 transition-colors bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-900/40"
+          >
+            👁️ Xem trước
+          </button>
           <button
             onClick={() => onApprove(book.bookId, book.title)}
-            className="px-6 py-3 font-medium text-white transition-colors bg-green-600 rounded-lg hover:bg-green-700"
+            className="flex items-center gap-2 px-6 py-3 font-medium text-white transition-colors bg-green-600 rounded-lg hover:bg-green-700"
           >
             ✅ Duyệt
           </button>
           <button
             onClick={() => onReject(book.bookId, book.title)}
-            className="px-6 py-3 font-medium text-white transition-colors bg-red-600 rounded-lg hover:bg-red-700"
+            className="flex items-center gap-2 px-6 py-3 font-medium text-white transition-colors bg-red-600 rounded-lg hover:bg-red-700"
           >
             ❌ Từ chối
           </button>

@@ -1,50 +1,70 @@
+import { useState, useEffect } from "react";
 import Head from "next/head";
 import Link from "next/link";
+import { useRouter } from "next/router";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
+import Toast from "../components/Toast";
+import { api } from "../lib/api";
+
+// Force SSR for auth check
+export async function getServerSideProps() {
+  return { props: {} };
+}
 
 export default function MyUploadsPage() {
-  // TODO: Replace with actual API call
-  const uploads = [
-    {
-      bookId: "1",
-      title: "My First Book",
-      author: "John Doe",
-      status: "APPROVED",
-      uploadedAt: "2025-01-15T10:30:00Z",
-      approvedAt: "2025-01-15T11:00:00Z",
-    },
-    {
-      bookId: "2",
-      title: "Pending Book",
-      author: "John Doe",
-      status: "PENDING",
-      uploadedAt: "2025-01-14T10:30:00Z",
-    },
-    {
-      bookId: "3",
-      title: "Processing Book",
-      author: "John Doe",
-      status: "UPLOADING",
-      uploadedAt: "2025-01-16T10:29:00Z",
-    },
-    {
-      bookId: "4",
-      title: "Rejected Book",
-      author: "John Doe",
-      status: "REJECTED",
-      uploadedAt: "2025-01-13T10:30:00Z",
-      rejectedAt: "2025-01-13T11:00:00Z",
-      rejectedReason: "Nội dung vi phạm bản quyền",
-    },
-    {
-      bookId: "5",
-      title: "Invalid File Type",
-      author: "John Doe",
-      status: "REJECTED_INVALID_TYPE",
-      uploadedAt: "2025-01-12T10:30:00Z",
-    },
-  ];
+  const router = useRouter();
+  const [uploads, setUploads] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [toast, setToast] = useState({ show: false, message: "", type: "success" });
+
+  useEffect(() => {
+    loadMyUploads();
+  }, []);
+
+  const loadMyUploads = async () => {
+    try {
+      setLoading(true);
+      setError("");
+      const result = await api.getMyUploads();
+      
+      console.log("=== MY UPLOADS API RESPONSE ===");
+      console.log("Books count:", result.books?.length || 0);
+      
+      // Log rejected books to verify rejectedReason is now saved
+      const rejectedBooks = (result.books || []).filter(b => b.status === 'REJECTED');
+      if (rejectedBooks.length > 0) {
+        console.log("=== REJECTED BOOKS (After backend fix) ===");
+        rejectedBooks.forEach(book => {
+          console.log(`Book "${book.title}" (${book.bookId}):`, {
+            status: book.status,
+            rejectedReason: book.rejectedReason,
+            rejectedBy: book.rejectedBy,
+            rejectedAt: book.rejectedAt
+          });
+        });
+      }
+      
+      // Handle both possible response formats
+      setUploads(result.books || result.uploads || result);
+    } catch (err) {
+      console.error("Failed to load uploads:", err);
+      
+      if (err.response?.status === 401) {
+        router.push("/login");
+      } else {
+        const errorMsg = err.response?.data?.message || err.message || "Không thể tải danh sách sách";
+        setError(errorMsg + ". Vui lòng thử lại sau.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const showToast = (message, type = "success") => {
+    setToast({ show: true, message, type });
+  };
 
   return (
     <div className="min-h-screen bg-white dark:bg-black">
@@ -54,12 +74,43 @@ export default function MyUploadsPage() {
       <Header />
 
       <main className="px-4 py-12 mx-auto max-w-7xl">
-        <h1 className="mb-8 text-4xl font-bold text-center text-gray-900 dark:text-white">
-          Sách của tôi
-        </h1>
+        <div className="flex items-center justify-between mb-8">
+          <h1 className="text-4xl font-bold text-gray-900 dark:text-white">
+            Sách của tôi
+          </h1>
+          <button
+            onClick={loadMyUploads}
+            disabled={loading}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white transition-colors bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+          >
+            <svg className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            Làm mới
+          </button>
+        </div>
 
-        {uploads.length === 0 ? (
+        {loading ? (
+          <div className="flex items-center justify-center py-16">
+            <div className="text-center">
+              <div className="inline-block w-12 h-12 mb-4 border-4 border-blue-600 rounded-full border-t-transparent animate-spin"></div>
+              <p className="text-gray-600 dark:text-gray-400">Đang tải...</p>
+            </div>
+          </div>
+        ) : error ? (
           <div className="py-16 text-center">
+            <div className="mb-4 text-6xl">😔</div>
+            <p className="mb-4 text-xl text-gray-600 dark:text-gray-400">{error}</p>
+            <button
+              onClick={loadMyUploads}
+              className="px-6 py-3 font-medium text-white transition-colors bg-blue-600 rounded-lg hover:bg-blue-700"
+            >
+              Thử lại
+            </button>
+          </div>
+        ) : uploads.length === 0 ? (
+          <div className="py-16 text-center">
+            <div className="mb-4 text-6xl">📚</div>
             <p className="mb-4 text-xl text-gray-500 dark:text-gray-400">
               Bạn chưa tải lên sách nào
             </p>
@@ -73,48 +124,67 @@ export default function MyUploadsPage() {
         ) : (
           <div className="space-y-4">
             {uploads.map((book) => (
-              <UploadCard key={book.bookId} book={book} />
+              <UploadCard key={book.bookId} book={book} onToast={showToast} />
             ))}
           </div>
         )}
       </main>
 
       <Footer />
+      
+      <Toast
+        show={toast.show}
+        message={toast.message}
+        type={toast.type}
+        onClose={() => setToast({ ...toast, show: false })}
+      />
     </div>
   );
 }
 
-function UploadCard({ book }) {
+function UploadCard({ book, onToast }) {
+  const router = useRouter();
+
   const getStatusBadge = (status) => {
     const badges = {
       UPLOADING: {
         text: "Đang xử lý",
         className: "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300",
+        icon: "🔄"
       },
       PENDING: {
         text: "Chờ duyệt",
         className: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300",
+        icon: "⏳"
       },
       APPROVED: {
         text: "Đã duyệt",
         className: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
+        icon: "✅"
       },
       REJECTED: {
         text: "Bị từ chối",
         className: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300",
+        icon: "❌"
       },
       REJECTED_INVALID_TYPE: {
         text: "File không hợp lệ",
         className: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300",
+        icon: "⚠️"
       },
     };
 
     const badge = badges[status] || badges.PENDING;
     return (
-      <span className={`px-3 py-1 text-xs font-medium rounded-full ${badge.className}`}>
+      <span className={`inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded-full ${badge.className}`}>
+        <span>{badge.icon}</span>
         {badge.text}
       </span>
     );
+  };
+
+  const handleReadBook = () => {
+    router.push(`/read/${book.bookId}`);
   };
 
   const formatDate = (dateString) => {
@@ -150,15 +220,28 @@ function UploadCard({ book }) {
               Đã duyệt: {formatDate(book.approvedAt)}
             </p>
           )}
-          {book.status === "REJECTED" && book.rejectedReason && (
-            <p className="mt-2 text-sm text-red-600 dark:text-red-400">
-              Lý do từ chối: {book.rejectedReason}
-            </p>
+          {book.status === "REJECTED" && (
+            <div className="p-3 mt-2 bg-red-50 border border-red-200 rounded-lg dark:bg-red-900/20 dark:border-red-800">
+              <p className="text-sm font-semibold text-red-800 dark:text-red-300 mb-1">
+                ❌ Lý do từ chối:
+              </p>
+              <p className="text-sm text-red-700 dark:text-red-400">
+                {book.rejectedReason || book.rejectionReason || book.rejection_reason || 
+                  "Admin chưa ghi rõ lý do. Vui lòng liên hệ admin để biết thêm chi tiết."}
+              </p>
+              {book.rejectedAt && (
+                <p className="text-xs text-red-600 dark:text-red-500 mt-1">
+                  Từ chối lúc: {formatDate(book.rejectedAt)}
+                </p>
+              )}
+            </div>
           )}
           {book.status === "REJECTED_INVALID_TYPE" && (
-            <p className="mt-2 text-sm text-red-600 dark:text-red-400">
-              File không đúng định dạng PDF/ePub hoặc bị hỏng
-            </p>
+            <div className="p-3 mt-2 bg-red-50 border border-red-200 rounded-lg dark:bg-red-900/20 dark:border-red-800">
+              <p className="text-sm text-red-700 dark:text-red-400">
+                ⚠️ File không đúng định dạng PDF/ePub hoặc bị hỏng
+              </p>
+            </div>
           )}
           {book.status === "UPLOADING" && (
             <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
@@ -170,17 +253,34 @@ function UploadCard({ book }) {
         {/* Actions */}
         <div className="flex gap-2">
           {book.status === "APPROVED" && (
-            <Link
-              href={`/books/${book.bookId}`}
-              className="px-4 py-2 text-sm font-medium text-white transition-colors bg-blue-600 rounded-lg hover:bg-blue-700"
+            <button
+              onClick={handleReadBook}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white transition-colors bg-blue-600 rounded-lg hover:bg-blue-700"
             >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+              </svg>
               Đọc sách
-            </Link>
+            </button>
           )}
           {book.status === "PENDING" && (
-            <span className="px-4 py-2 text-sm font-medium text-gray-500 bg-gray-100 rounded-lg dark:bg-gray-700 dark:text-gray-400">
+            <div className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-500 bg-gray-100 rounded-lg dark:bg-gray-700 dark:text-gray-400">
+              <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
               Đang chờ duyệt
-            </span>
+            </div>
+          )}
+          {(book.status === "REJECTED" || book.status === "REJECTED_INVALID_TYPE") && (
+            <Link
+              href="/upload"
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white transition-colors bg-green-600 rounded-lg hover:bg-green-700"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+              </svg>
+              Tải lên lại
+            </Link>
           )}
         </div>
       </div>

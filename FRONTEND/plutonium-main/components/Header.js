@@ -3,6 +3,7 @@ import { useTheme } from "next-themes";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useAuth } from "../src/contexts/AuthContext";
+import { fetchAuthSession } from "aws-amplify/auth";
 
 export default function Header() {
   const [navbarOpen, setNavbarOpen] = useState(false);
@@ -15,7 +16,53 @@ export default function Header() {
   // When mounted on client, now we can show the UI
   useEffect(() => setMounted(true), []);
 
-  const handleSignOut = async () => {
+  // Check if user is admin - use fetchAuthSession for Amplify v6
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    const checkAdmin = async () => {
+      if (!user) {
+        setIsAdmin(false);
+        return;
+      }
+
+      try {
+        // Get tokens from Amplify v6
+        const session = await fetchAuthSession();
+        const accessToken = session.tokens?.accessToken;
+        const idToken = session.tokens?.idToken;
+
+        console.log('=== AUTH SESSION DEBUG ===');
+        console.log('Access Token:', accessToken);
+        console.log('ID Token:', idToken);
+        console.log('Access Token Groups:', accessToken?.payload?.['cognito:groups']);
+        console.log('ID Token Groups:', idToken?.payload?.['cognito:groups']);
+        
+        // Check groups from tokens
+        const tokenGroups = 
+          accessToken?.payload?.['cognito:groups'] ||
+          idToken?.payload?.['cognito:groups'];
+        
+        // Email whitelist as fallback
+        const adminEmails = ['nhanle221199@gmail.com'];
+        
+        const isAdminUser = 
+          tokenGroups?.includes('Admins') || 
+          adminEmails.includes(user?.attributes?.email || user?.username || '');
+
+        console.log('Groups:', tokenGroups);
+        console.log('Is Admin:', isAdminUser);
+        console.log('========================');
+        
+        setIsAdmin(isAdminUser);
+      } catch (error) {
+        console.error('Error checking admin:', error);
+        setIsAdmin(false);
+      }
+    };
+
+    checkAdmin();
+  }, [user]);  const handleSignOut = async () => {
     try {
       await signOutUser();
       router.push("/");
@@ -73,6 +120,11 @@ export default function Header() {
             <Link href="/my-uploads" className="text-black transition duration-300 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400">
               Sách của tôi
             </Link>
+            {isAdmin && (
+              <Link href="/admin/pending" className="text-black transition duration-300 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 font-semibold">
+                ⚙️ Admin
+              </Link>
+            )}
           </div>
           <button
             aria-label="Toggle Dark Mode"

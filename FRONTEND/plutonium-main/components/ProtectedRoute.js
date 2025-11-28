@@ -1,17 +1,57 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import { useAuth } from '../store/authStore';
+import { useAuth } from '../src/contexts/AuthContext';
+import { fetchAuthSession } from 'aws-amplify/auth';
 
 /**
  * Protected Route Component
  * Redirects to login if user is not authenticated
  */
 export default function ProtectedRoute({ children, requireAdmin = false }) {
-  const { user, loading, isAdmin } = useAuth();
+  const { user, loading } = useAuth();
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [checkingAdmin, setCheckingAdmin] = useState(true);
   const router = useRouter();
 
+  // Check admin status
   useEffect(() => {
-    if (!loading) {
+    const checkAdminStatus = async () => {
+      if (!user) {
+        setIsAdmin(false);
+        setCheckingAdmin(false);
+        return;
+      }
+
+      try {
+        const session = await fetchAuthSession();
+        const accessToken = session.tokens?.accessToken;
+        const idToken = session.tokens?.idToken;
+        
+        const tokenGroups = 
+          accessToken?.payload?.['cognito:groups'] ||
+          idToken?.payload?.['cognito:groups'];
+        
+        const adminEmails = ['nhanle221199@gmail.com'];
+        
+        const isAdminUser = 
+          tokenGroups?.includes('Admins') || 
+          adminEmails.includes(user?.attributes?.email || user?.username || '');
+        
+        setIsAdmin(isAdminUser);
+      } catch (error) {
+        console.error('Error checking admin:', error);
+        setIsAdmin(false);
+      } finally {
+        setCheckingAdmin(false);
+      }
+    };
+
+    checkAdminStatus();
+  }, [user]);
+
+  // Redirect logic
+  useEffect(() => {
+    if (!loading && !checkingAdmin) {
       // Not authenticated - redirect to login
       if (!user) {
         router.push(`/login?redirect=${encodeURIComponent(router.asPath)}`);
@@ -21,10 +61,10 @@ export default function ProtectedRoute({ children, requireAdmin = false }) {
         router.push('/');
       }
     }
-  }, [user, loading, isAdmin, requireAdmin, router]);
+  }, [user, loading, isAdmin, checkingAdmin, requireAdmin, router]);
 
   // Show loading state
-  if (loading) {
+  if (loading || checkingAdmin) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">

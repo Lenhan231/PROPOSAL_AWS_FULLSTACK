@@ -86,9 +86,10 @@ export const api = {
   /**
    * Get read URL for a book
    * @param {string} bookId
+   * @param {Object} params - Optional query parameters (e.g., { responseContentDisposition: 'inline' })
    */
-  getReadUrl: async (bookId) => {
-    const response = await apiClient.get(API_ENDPOINTS.GET_READ_URL(bookId));
+  getReadUrl: async (bookId, params = {}) => {
+    const response = await apiClient.get(API_ENDPOINTS.GET_READ_URL(bookId), { params });
     return response.data;
   },
 
@@ -158,7 +159,21 @@ export const api = {
    * @param {string} reason
    */
   rejectBook: async (bookId, reason) => {
-    const response = await apiClient.post(API_ENDPOINTS.REJECT_BOOK(bookId), { reason });
+    console.log("=== REJECT BOOK API CALL ===");
+    console.log("Book ID:", bookId);
+    console.log("Reason:", reason);
+    console.log("Endpoint:", API_ENDPOINTS.REJECT_BOOK(bookId));
+    
+    // Try with multiple field names in case backend expects different name
+    const payload = {
+      reason: reason,
+      rejectionReason: reason,
+      rejectedReason: reason
+    };
+    console.log("Payload:", payload);
+    
+    const response = await apiClient.post(API_ENDPOINTS.REJECT_BOOK(bookId), payload);
+    console.log("Response:", response.data);
     return response.data;
   },
 };
