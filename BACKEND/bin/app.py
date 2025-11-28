@@ -107,6 +107,7 @@ processing_stack = ProcessingStack(
     app,
     f"{stack_prefix}-Processing",
     database_stack=database_stack,
+    storage_stack_name=f"{stack_prefix}-Storage",
     env=env,
     description="File processing Lambda functions",
 )

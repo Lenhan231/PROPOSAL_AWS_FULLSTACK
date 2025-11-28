@@ -86,9 +86,11 @@ def _validate_and_build_payload(data: Dict[str, Any]) -> CreateUploadPayload:
     }
     validate_file_extension(file_name, allowed_extensions)
 
-    description = data.get("description")
-    if description is not None:
-        description = validate_string_field(description, "description", min_length=0)
+    description_raw = data.get("description")
+    if description_raw is not None:
+        description = validate_string_field(description_raw, "description", min_length=0)
+    else:
+        description = ""
 
     return CreateUploadPayload(
         file_name=file_name,
@@ -136,6 +138,12 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
     # 3) Validate payload
     payload = _validate_and_build_payload(data)
+    logger.info(
+        f"Parsed upload payload: title={payload.title!r}, author={payload.author!r}, "
+        f"description_len={len(payload.description or '')}, "
+        f"description_preview={(payload.description or '')[:40]!r}, "
+        f"file_name={payload.file_name!r}, file_size={payload.file_size}"
+    )
 
     # 4) Env config
     table_name = _get_env_or_error("BOOKS_TABLE_NAME")

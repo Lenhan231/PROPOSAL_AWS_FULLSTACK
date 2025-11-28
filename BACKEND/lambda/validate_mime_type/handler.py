@@ -160,7 +160,9 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     try:
         # Parse S3 event
         bucket = event["Records"][0]["s3"]["bucket"]["name"]
-        key = event["Records"][0]["s3"]["object"]["key"]
+        from urllib.parse import unquote_plus
+
+        key = unquote_plus(event["Records"][0]["s3"]["object"]["key"])
 
         logger.info(f"Processing S3 object: s3://{bucket}/{key}")
 
@@ -209,6 +211,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             uploadedAt=processed_at,
             rejectedReason=None if is_valid else "Invalid MIME type",
             rejectedAt=None if is_valid else processed_at,
+            GSI5PK="STATUS#PENDING" if is_valid else None,
+            GSI5SK=processed_at if is_valid else None,
         )
 
         logger.info(f"Book {book_id}: Status updated to {status}")

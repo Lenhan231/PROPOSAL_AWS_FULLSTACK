@@ -20,6 +20,7 @@ Dependencies: Không phụ thuộc stack khác → Làm đầu tiên
 from aws_cdk import (
     Stack,
     aws_cognito as cognito,
+    aws_lambda as _lambda,
     CfnOutput,
     RemovalPolicy
 )
@@ -65,6 +66,24 @@ class CognitoStack(Stack):
             write_attributes=cognito.ClientAttributes() 
                 .with_standard_attributes(email=True),
 
+        )
+
+        # Pre Token Generation trigger to inject cognito:groups into tokens
+        pre_token_fn = _lambda.Function(
+            self,
+            "PreTokenGenerationFn",
+            runtime=_lambda.Runtime.PYTHON_3_12,
+            handler="cognito_pre_token.handler.handler",
+            code=_lambda.Code.from_asset(
+                "./lambda",
+                exclude=["**/__pycache__", "*.pyc", ".pytest_cache", "tests"],
+            ),
+            timeout=Duration.seconds(10),
+            memory_size=128,
+        )
+        user_pool.add_trigger(
+            cognito.UserPoolOperation.PRE_TOKEN_GENERATION,
+            pre_token_fn,
         )
 
         # Admin Group

@@ -14,7 +14,9 @@ Environment variables:
 
 import json
 import os
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
+
+from boto3.dynamodb.conditions import Key, Attr
 
 from shared.logger import get_logger
 from shared.dynamodb import get_dynamodb_table
@@ -49,34 +51,72 @@ def _list_pending_books(
     """
     table = get_dynamodb_table(table_name)
 
-    # Query all pending books
-    response = table.scan(
-        FilterExpression="attribute_exists(#status) AND #status = :status",
-        ExpressionAttributeNames={
-            "#status": "status",
-        },
-        ExpressionAttributeValues={
-            ":status": "PENDING",
-        },
-    )
+    items: List[Dict[str, Any]] = []
+    missing_gsi_items: List[Dict[str, Any]] = []
 
-    books = response.get("Items", [])
+    # Try fast path via GSI5 if available; otherwise fallback to scan
+    try:
+        response = table.query(
+            IndexName="GSI5",
+            KeyConditionExpression=Key("GSI5PK").eq("STATUS#PENDING"),
+        )
+        items = response.get("Items", [])
+    except Exception:
+        # Fallback: full table scan
+        response = table.scan(
+            FilterExpression="attribute_exists(#status) AND #status = :status",
+            ExpressionAttributeNames={
+                "#status": "status",
+            },
+            ExpressionAttributeValues={
+                ":status": "PENDING",
+            },
+        )
+        items = response.get("Items", [])
+
+    # Also include legacy items missing GSI5 attributes
+    try:
+        resp_missing = table.scan(
+            FilterExpression=Attr("status").eq("PENDING")
+            & (Attr("GSI5PK").not_exists() | Attr("GSI5SK").not_exists()),
+        )
+        missing_gsi_items = resp_missing.get("Items", [])
+    except Exception:
+        missing_gsi_items = []
+
+    # Merge and deduplicate by PK/SK
+    merged: Dict[tuple, Dict[str, Any]] = {}
+    for item in items + missing_gsi_items:
+        key = (item.get("PK"), item.get("SK"))
+        merged[key] = item
+    merged_items = list(merged.values())
+
+    # Sort by uploadedAt/createdAt desc so newest first
+    def _ts(book: Dict[str, Any]) -> Any:
+        return book.get("uploadedAt") or book.get("createdAt") or ""
+
+    merged_items.sort(key=_ts, reverse=True)
 
     # Apply pagination
-    total = len(books)
-    books = books[offset : offset + limit]
+    total = len(merged_items)
+    books = merged_items[offset : offset + limit]
 
     # Format response
     formatted_books = []
     for book in books:
+        status = book.get("status") or "PENDING"
+        uploaded_at = book.get("uploadedAt") or book.get("createdAt")
+        file_size = book.get("fileSize") or book.get("file_size")
         formatted_books.append({
             "bookId": book.get("bookId"),
             "title": book.get("title"),
             "author": book.get("author"),
             "description": book.get("description"),
+            "status": status,
             "uploadedBy": book.get("uploaderEmail"),
-            "uploadedAt": book.get("createdAt"),
+            "uploadedAt": uploaded_at,
             "mimeType": book.get("mime_type"),
+            "fileSize": file_size,
         })
 
     return formatted_books, total
@@ -129,7 +169,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         return api_response(
             status_code=200,
-            body={
+            body=json.loads(json.dumps({
                 "books": books,
                 "pagination": {
                     "limit": limit,
@@ -137,7 +177,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     "total": total,
                     "hasMore": offset + limit < total,
                 },
-            },
+            }, default=lambda o: float(o))),
         )
 
     except ValueError as e:

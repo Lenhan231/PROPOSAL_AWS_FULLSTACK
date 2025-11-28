@@ -13,6 +13,8 @@ from aws_cdk import (
     Stack,
     aws_lambda as _lambda,
     aws_iam as iam,
+    aws_s3 as s3,
+    Fn,
     Duration,
     CfnOutput,
 )
@@ -27,12 +29,15 @@ class ProcessingStack(Stack):
         scope: Construct,
         construct_id: str,
         database_stack=None,
+        storage_stack_name: str = None,
         **kwargs
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
         # Get DynamoDB table from database stack
         books_table = database_stack.table if database_stack else None
+        # Import bucket name if provided
+        bucket_name = Fn.import_value(f"{storage_stack_name}-Bucket-Name") if storage_stack_name else None
 
         # === validate_mime_type Lambda ===
         validate_mime_type_fn = _lambda.Function(
@@ -56,8 +61,16 @@ class ProcessingStack(Stack):
         if books_table:
             books_table.grant_write_data(validate_mime_type_fn)
 
-        # Note: S3 permissions will be granted by EventStack or setup script
-        # to avoid cyclic dependencies
+        # S3 permissions
+        if bucket_name:
+            bucket = s3.Bucket.from_bucket_name(self, "UploadsBucketImport", bucket_name)
+            bucket.grant_read_write(validate_mime_type_fn)
+            validate_mime_type_fn.add_to_role_policy(
+                iam.PolicyStatement(
+                    actions=["s3:ListBucket"],
+                    resources=[bucket.bucket_arn],
+                )
+            )
 
         # Store Lambda for other stacks to reference
         self.validate_mime_type_fn = validate_mime_type_fn

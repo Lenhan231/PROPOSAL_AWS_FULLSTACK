@@ -82,6 +82,8 @@ def test_validate_mime_type_pdf_approved(validate_test_context, build_api_gatewa
     assert item is not None
     assert item["status"] == "PENDING"
     assert item.get("mime_type") == "application/pdf"
+    assert item.get("GSI5PK") == "STATUS#PENDING"
+    assert item.get("GSI5SK") is not None
 
 
 def test_validate_mime_type_invalid_rejected(validate_test_context):
@@ -132,3 +134,5 @@ def test_validate_mime_type_invalid_rejected(validate_test_context):
     item = table.get_item(Key={"PK": f"BOOK#{book_id}", "SK": "METADATA"}).get("Item")
     assert item is not None
     assert item["status"] == "REJECTED"
+    assert item.get("GSI5PK") is None
+    assert item.get("GSI5SK") is None

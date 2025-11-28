@@ -1,23 +1,18 @@
 import json
+import sys
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import boto3
 import pytest
 
+# Add lambda directory to path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
 from reject_book.handler import handler
 
-from lib.utils.error_codes import ErrorCode
 
-
-@pytest.mark.skip(reason="TODO: implement reject_book Lambda")
 def test_reject_book_happy_path(upload_test_context, s3_bucket, books_table):
-    """
-    Happy-path test for rejectBook:
-    - Assume an existing PENDING book item
-    - File exists in uploads/
-    - After calling handler:
-      - status becomes REJECTED
-      - file in uploads/ is deleted
-    """
     region = upload_test_context["region"]
     bucket_name = upload_test_context["bucket_name"]
     table_name = upload_test_context["table_name"]
@@ -26,7 +21,7 @@ def test_reject_book_happy_path(upload_test_context, s3_bucket, books_table):
     table = ddb.Table(table_name)
 
     book_id = "book-456"
-    s3_key = f"uploads/{book_id}/book.pdf"
+    s3_key = f"staging/{book_id}/book.pdf"
 
     # Seed DynamoDB with PENDING item
     table.put_item(
@@ -39,15 +34,20 @@ def test_reject_book_happy_path(upload_test_context, s3_bucket, books_table):
             "status": "PENDING",
             "uploaderId": "user-123",
             "uploaderEmail": "user@example.com",
-            "s3Key": s3_key,
+            "file_path": s3_key,
+            "GSI5PK": "STATUS#PENDING",
+            "GSI5SK": datetime.now(timezone.utc).isoformat(),
         }
     )
 
-    # Seed S3 with file in uploads/
+    # Seed S3 with file in staging/
     s3 = s3_bucket["client"]
     s3.put_object(Bucket=bucket_name, Key=s3_key, Body=b"dummy-pdf-content")
 
     event = {
+        "pathParameters": {
+            "bookId": book_id,
+        },
         "requestContext": {
             "authorizer": {
                 "jwt": {
@@ -60,7 +60,7 @@ def test_reject_book_happy_path(upload_test_context, s3_bucket, books_table):
             }
         },
         "body": json.dumps(
-            {"bookId": book_id, "reason": "Copyright violation"}
+            {"reason": "Copyright violation"}
         ),
     }
 
@@ -71,6 +71,7 @@ def test_reject_book_happy_path(upload_test_context, s3_bucket, books_table):
     body = json.loads(response["body"])
     assert body["bookId"] == book_id
     assert body["status"] == "REJECTED"
+    assert body["reason"] == "Copyright violation"
 
     # Verify DynamoDB status
     item = table.get_item(
@@ -82,7 +83,11 @@ def test_reject_book_happy_path(upload_test_context, s3_bucket, books_table):
     assert "rejectedAt" in item
     assert item.get("rejectedBy") == "admin-1"
     assert item.get("rejectedReason") == "Copyright violation"
+    # GSI5 removed
+    assert item.get("GSI5PK") is None
+    assert item.get("GSI5SK") is None
 
-    # Verify S3 object deleted
+    # Verify S3 object moved to quarantine and removed from staging
+    s3.head_object(Bucket=bucket_name, Key=f"quarantine/{book_id}/book.pdf")
     with pytest.raises(Exception):
         s3.head_object(Bucket=bucket_name, Key=s3_key)

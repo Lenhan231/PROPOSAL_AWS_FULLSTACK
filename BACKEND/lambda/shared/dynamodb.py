@@ -193,15 +193,23 @@ def update_book_status(
     """
     table = get_dynamodb_table(table_name)
 
-    update_expr = "SET #status = :status"
+    set_parts = ["#status = :status"]
+    remove_parts = []
     expr_attr_names = {"#status": "status"}
     expr_attr_values = {":status": status}
 
-    # Add additional fields
-    for i, (key, value) in enumerate(additional_fields.items()):
-        update_expr += f", #{key} = :{key}"
+    # Add additional fields; skip None or remove them
+    for key, value in additional_fields.items():
         expr_attr_names[f"#{key}"] = key
-        expr_attr_values[f":{key}"] = value
+        if value is None:
+            remove_parts.append(f"#{key}")
+        else:
+            set_parts.append(f"#{key} = :{key}")
+            expr_attr_values[f":{key}"] = value
+
+    update_expr = "SET " + ", ".join(set_parts)
+    if remove_parts:
+        update_expr += " REMOVE " + ", ".join(remove_parts)
 
     response = table.update_item(
         Key={

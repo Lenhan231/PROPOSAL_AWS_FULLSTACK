@@ -210,6 +210,30 @@ class ApiStack(Stack):
         if books_table:
             books_table.grant_read_data(get_my_uploads_fn)
 
+        # deleteBook Lambda
+        delete_book_fn = _lambda.Function(
+            self,
+            "DeleteBookFn",
+            runtime=_lambda.Runtime.PYTHON_3_12,
+            handler="delete_book.handler.handler",
+            code=_lambda.Code.from_asset(
+                "./lambda",
+                exclude=["**/__pycache__", "*.pyc", ".pytest_cache", "tests"],
+            ),
+            timeout=Duration.seconds(30),
+            memory_size=256,
+            environment={
+                "BOOKS_TABLE_NAME": books_table.table_name if books_table else "OnlineLibrary",
+                "UPLOADS_BUCKET_NAME": uploads_bucket.bucket_name if uploads_bucket else "uploads",
+            },
+        )
+        lambdas["deleteBook"] = delete_book_fn
+
+        if books_table:
+            books_table.grant_read_write_data(delete_book_fn)
+        if uploads_bucket:
+            uploads_bucket.grant_read_write(delete_book_fn)
+
         # listPendingBooks Lambda
         list_pending_books_fn = _lambda.Function(
             self,
@@ -257,6 +281,30 @@ class ApiStack(Stack):
         if uploads_bucket:
             uploads_bucket.grant_read_write(approve_book_fn)
 
+        # rejectBook Lambda
+        reject_book_fn = _lambda.Function(
+            self,
+            "RejectBookFn",
+            runtime=_lambda.Runtime.PYTHON_3_12,
+            handler="reject_book.handler.handler",
+            code=_lambda.Code.from_asset(
+                "./lambda",
+                exclude=["**/__pycache__", "*.pyc", ".pytest_cache", "tests"],
+            ),
+            timeout=Duration.seconds(30),
+            memory_size=256,
+            environment={
+                "BOOKS_TABLE_NAME": books_table.table_name if books_table else "OnlineLibrary",
+                "UPLOADS_BUCKET_NAME": uploads_bucket.bucket_name if uploads_bucket else "uploads",
+            },
+        )
+        lambdas["rejectBook"] = reject_book_fn
+
+        if books_table:
+            books_table.grant_read_write_data(reject_book_fn)
+        if uploads_bucket:
+            uploads_bucket.grant_read_write(reject_book_fn)
+
         # Note: validate_mime_type Lambda moved to ProcessingStack
         # to avoid cyclic dependencies with S3 event notifications
 
@@ -266,9 +314,10 @@ class ApiStack(Stack):
             ("/books/{bookId}/read-url", apigw.HttpMethod.GET, get_read_url_fn),
             ("/books/search", apigw.HttpMethod.GET, search_books_fn),
             ("/books/my-uploads", apigw.HttpMethod.GET, get_my_uploads_fn),
+            ("/books/{bookId}", apigw.HttpMethod.DELETE, delete_book_fn),
             ("/admin/books/pending", apigw.HttpMethod.GET, list_pending_books_fn),
             ("/admin/books/{bookId}/approve", apigw.HttpMethod.POST, approve_book_fn),
-            ("/admin/books/{bookId}/reject", apigw.HttpMethod.POST, approve_book_fn),
+            ("/admin/books/{bookId}/reject", apigw.HttpMethod.POST, reject_book_fn),
         ]
 
         for path, method, handler_fn in routes:

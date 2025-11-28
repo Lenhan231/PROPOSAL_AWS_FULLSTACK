@@ -171,6 +171,9 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             approvedAt=approved_at,
             rejectedAt=rejected_at,
             approvedBy=event.get("requestContext", {}).get("authorizer", {}).get("claims", {}).get("sub", "unknown"),
+            # Remove from pending index
+            GSI5PK=None,
+            GSI5SK=None,
         )
 
         logger.info(f"Book {book_id}: {action}ed successfully")

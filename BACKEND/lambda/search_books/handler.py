@@ -16,6 +16,7 @@ Environment variables:
 import json
 import os
 from typing import Any, Dict, List, Optional
+from decimal import Decimal
 
 from shared.logger import get_logger
 from shared.dynamodb import get_dynamodb_table
@@ -82,13 +83,17 @@ def _search_books(
     # Format response
     formatted_books = []
     for book in books:
+        uploaded_at = book.get("uploadedAt") or book.get("createdAt")
         formatted_books.append({
             "bookId": book.get("bookId"),
             "title": book.get("title"),
             "author": book.get("author"),
             "description": book.get("description"),
             "status": book.get("status"),
-            "uploadedAt": book.get("createdAt"),
+            "uploadedAt": uploaded_at,
+            "fileSize": book.get("fileSize") or book.get("file_size"),
+            "uploaderEmail": book.get("uploaderEmail"),
+            "approvedAt": book.get("approvedAt"),
         })
 
     return formatted_books, total
@@ -143,7 +148,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         return api_response(
             status_code=200,
-            body={
+            body=json.loads(json.dumps({  # convert Decimals to float/int
                 "books": books,
                 "pagination": {
                     "limit": limit,
@@ -151,7 +156,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     "total": total,
                     "hasMore": offset + limit < total,
                 },
-            },
+            }, default=lambda o: float(o) if isinstance(o, Decimal) else o)),
         )
 
     except ValueError as e:
