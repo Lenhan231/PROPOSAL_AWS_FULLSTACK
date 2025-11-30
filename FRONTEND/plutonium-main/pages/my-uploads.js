@@ -7,6 +7,11 @@ import Footer from "../components/Footer";
 import Toast from "../components/Toast";
 import { api } from "../lib/api";
 
+// Force SSR for auth check
+export async function getServerSideProps() {
+  return { props: {} };
+}
+
 export default function MyUploadsPage() {
   const router = useRouter();
   const [uploads, setUploads] = useState([]);

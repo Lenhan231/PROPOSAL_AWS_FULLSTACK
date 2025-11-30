@@ -3,6 +3,11 @@ import { useRouter } from "next/router";
 import Head from "next/head";
 import { api } from "../../lib/api";
 
+// Force SSR
+export async function getServerSideProps() {
+  return { props: {} };
+}
+
 export default function ReadBookPage() {
   const router = useRouter();
   const { bookId } = router.query;

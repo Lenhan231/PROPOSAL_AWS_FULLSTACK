@@ -160,5 +160,11 @@ export default function TestUploadPage() {
   );
 }
 
+export async function getServerSideProps() {
+  return {
+    props: {},
+  };
+}
+
 // Force server-side rendering to avoid static export errors with AuthContext
 
