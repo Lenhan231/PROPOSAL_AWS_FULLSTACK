@@ -1,14 +1,19 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Keep existing optimizations
   reactStrictMode: true,
   
-  // Enable static export for Amplify Hosting
-  output: 'export',
-  
-  // Disable image optimization for static export
+  // Allow images from S3 and external sources
   images: {
-    unoptimized: true,
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: '**.s3.amazonaws.com',
+      },
+      {
+        protocol: 'https',
+        hostname: '**.cloudfront.net',
+      },
+    ],
   },
 };
 

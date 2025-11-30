@@ -9,9 +9,10 @@ frontend:
       commands:
         - npm run build
   artifacts:
-    baseDirectory: FRONTEND/plutonium-main/out
+    baseDirectory: FRONTEND/plutonium-main
     files:
       - '**/*'
   cache:
     paths:
       - FRONTEND/plutonium-main/node_modules/**/*
+      - FRONTEND/plutonium-main/.next/cache/**/*
