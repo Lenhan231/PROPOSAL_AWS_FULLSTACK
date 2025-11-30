@@ -261,9 +261,4 @@ export default function UploadPage() {
 }
 
 // Force server-side rendering to avoid static export errors with AuthContext
-export async function getServerSideProps() {
-  return {
-    props: {},
-  };
-}
 

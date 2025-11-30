@@ -7,11 +7,6 @@ import Toast from "../../components/Toast";
 import { api } from "../../lib/api";
 import { BOOK_STATUS } from "../../lib/constants";
 
-// Force SSR to ensure auth context is available
-export async function getServerSideProps() {
-  return { props: {} };
-}
-
 export default function AdminPendingPage() {
   const [books, setBooks] = useState([]);
   const [totalBooks, setTotalBooks] = useState(0);
