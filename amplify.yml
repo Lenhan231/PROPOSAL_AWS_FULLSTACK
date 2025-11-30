@@ -1,18 +1,20 @@
 version: 1
-frontend:
-  phases:
-    preBuild:
-      commands:
-        - cd FRONTEND/plutonium-main
-        - npm ci
-    build:
-      commands:
-        - npm run build
-  artifacts:
-    baseDirectory: FRONTEND/plutonium-main
-    files:
-      - '**/*'
-  cache:
-    paths:
-      - FRONTEND/plutonium-main/node_modules/**/*
-      - FRONTEND/plutonium-main/.next/cache/**/*
+applications:
+  - appRoot: FRONTEND/plutonium-main
+    frontend:
+      phases:
+        preBuild:
+          commands:
+            - npm ci
+        build:
+          commands:
+            - npm run build
+      artifacts:
+        baseDirectory: .next
+        files:
+          - '**/*'
+      cache:
+        paths:
+          - node_modules/**/*
+          - .next/cache/**/*
+      buildPath: /
