@@ -6,7 +6,7 @@ import { useAuth } from "../src/contexts/AuthContext";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { signInUser, signOutUser, user } = useAuth();
+  const { signInUser, signOutUser, user, confirmSignInWithNewPassword } = useAuth();
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -15,6 +15,8 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [needPasswordChange, setNeedPasswordChange] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
 
   // Load remembered email on mount
   useEffect(() => {
@@ -62,6 +64,10 @@ export default function LoginPage() {
         console.log('Next step:', nextStep);
         if (nextStep.signInStep === 'CONFIRM_SIGN_UP') {
           setError("Vui lòng xác thực email của bạn trước khi đăng nhập.");
+        } else if (nextStep.signInStep === 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED') {
+          setNeedPasswordChange(true);
+          setError("");
+          return; // Don't reset loading, stay on page
         }
       }
     } catch (err) {
@@ -84,6 +90,25 @@ export default function LoginPage() {
       } else {
         setError(err.message || "Đăng nhập thất bại. Vui lòng thử lại.");
       }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleNewPasswordSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    try {
+      const { isSignedIn } = await confirmSignInWithNewPassword(newPassword);
+      
+      if (isSignedIn) {
+        router.push("/books");
+      }
+    } catch (err) {
+      console.error('New password error:', err);
+      setError(err.message || "Không thể đổi mật khẩu. Vui lòng thử lại.");
     } finally {
       setLoading(false);
     }
@@ -114,6 +139,75 @@ export default function LoginPage() {
 
           {/* Login Card */}
           <div className="p-8 bg-white border border-gray-200 shadow-2xl rounded-2xl dark:bg-gray-800 dark:border-gray-700">
+            {needPasswordChange ? (
+              // New Password Form
+              <form onSubmit={handleNewPasswordSubmit} className="space-y-6">
+                <div className="text-center mb-6">
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Đổi Mật Khẩu</h2>
+                  <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                    Vui lòng tạo mật khẩu mới để tiếp tục
+                  </p>
+                </div>
+
+                {/* Error Message */}
+                {error && (
+                  <div className="p-4 bg-red-50 border border-red-200 rounded-lg dark:bg-red-900/20 dark:border-red-800">
+                    <div className="flex items-center">
+                      <span className="mr-2 text-red-600 dark:text-red-400">⚠️</span>
+                      <p className="text-sm text-red-800 dark:text-red-300">{error}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* New Password Field */}
+                <div>
+                  <label className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+                    Mật khẩu mới
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="w-full px-4 py-3 pr-12 text-gray-900 transition-colors bg-white border border-gray-300 rounded-lg dark:bg-gray-700 dark:text-white dark:border-gray-600 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Nhập mật khẩu mới (ít nhất 8 ký tự)"
+                      required
+                      minLength={8}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute inset-y-0 right-0 flex items-center px-4 text-gray-600 transition-colors dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                    >
+                      {showPassword ? "🙈" : "👁️"}
+                    </button>
+                  </div>
+                  <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                    Mật khẩu phải có ít nhất 8 ký tự, bao gồm chữ hoa, chữ thường và số
+                  </p>
+                </div>
+
+                {/* Submit Button */}
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full px-6 py-3 font-semibold text-white transition-all duration-300 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-lg hover:shadow-xl hover:shadow-blue-500/50 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                >
+                  {loading ? (
+                    <span className="flex items-center justify-center">
+                      <svg className="w-5 h-5 mr-2 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Đang xử lý...
+                    </span>
+                  ) : (
+                    "Xác nhận mật khẩu mới"
+                  )}
+                </button>
+              </form>
+            ) : (
+              // Original Login Form
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Error Message */}
               {error && (
@@ -219,36 +313,37 @@ export default function LoginPage() {
                   "Đăng nhập"
                 )}
               </button>
-            </form>
 
-            {/* Divider */}
-            <div className="relative my-6">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300 dark:border-gray-600"></div>
+              {/* Divider */}
+              <div className="relative my-6">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-300 dark:border-gray-600"></div>
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-4 text-gray-500 bg-white dark:bg-gray-800 dark:text-gray-400">
+                    Hoặc
+                  </span>
+                </div>
               </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-4 text-gray-500 bg-white dark:bg-gray-800 dark:text-gray-400">
-                  Hoặc
-                </span>
-              </div>
-            </div>
 
-            {/* Forgot Password Link */}
-            <div className="text-center mb-4">
-              <Link href="/forgot-password" className="text-sm text-blue-600 transition-colors hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300">
-                Quên mật khẩu?
-              </Link>
-            </div>
-
-            {/* Sign Up Link */}
-            <div className="text-center">
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Chưa có tài khoản?{" "}
-                <Link href="/signup" className="font-medium text-blue-600 transition-colors hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300">
-                  Đăng ký ngay
+              {/* Forgot Password Link */}
+              <div className="text-center mb-4">
+                <Link href="/forgot-password" className="text-sm text-blue-600 transition-colors hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300">
+                  Quên mật khẩu?
                 </Link>
-              </p>
-            </div>
+              </div>
+
+              {/* Sign Up Link */}
+              <div className="text-center">
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Chưa có tài khoản?{" "}
+                  <Link href="/signup" className="font-medium text-blue-600 transition-colors hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300">
+                    Đăng ký ngay
+                  </Link>
+                </p>
+              </div>
+            </form>
+            )}
           </div>
 
           {/* Back to Home */}

@@ -12,6 +12,9 @@ import {
   fetchAuthSession,
   updatePassword,
   fetchUserAttributes,
+  confirmSignIn,
+  updateUserAttribute,
+  confirmUserAttribute,
 } from 'aws-amplify/auth';
 import awsConfig from "../aws-config.js";
 
@@ -171,6 +174,83 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Confirm sign in với new password (khi Cognito yêu cầu đổi mật khẩu)
+  const confirmSignInWithNewPassword = async (newPassword) => {
+    try {
+      setError(null);
+      const { isSignedIn, nextStep } = await confirmSignIn({
+        challengeResponse: newPassword,
+      });
+      
+      if (isSignedIn) {
+        await checkUser();
+      }
+      
+      return { isSignedIn, nextStep };
+    } catch (err) {
+      console.error('Confirm sign in error:', err);
+      setError(err.message);
+      throw err;
+    }
+  };
+
+  // Cập nhật email
+  const updateEmail = async (newEmail) => {
+    try {
+      setError(null);
+      const result = await updateUserAttribute({
+        userAttribute: {
+          attributeKey: 'email',
+          value: newEmail,
+        },
+      });
+      // Don't refresh user data yet - wait for verification
+      return result;
+    } catch (err) {
+      console.error('Update email error:', err);
+      setError(err.message);
+      throw err;
+    }
+  };
+
+  // Xác thực email mới với mã code
+  const verifyEmailUpdate = async (code) => {
+    try {
+      setError(null);
+      await confirmUserAttribute({
+        userAttributeKey: 'email',
+        confirmationCode: code,
+      });
+      // Refresh user data after verification
+      await checkUser();
+      return true;
+    } catch (err) {
+      console.error('Verify email error:', err);
+      setError(err.message);
+      throw err;
+    }
+  };
+
+  // Cập nhật tên (name attribute)
+  const updateName = async (newName) => {
+    try {
+      setError(null);
+      await updateUserAttribute({
+        userAttribute: {
+          attributeKey: 'name',
+          value: newName,
+        },
+      });
+      // Refresh user data
+      await checkUser();
+      return true;
+    } catch (err) {
+      console.error('Update name error:', err);
+      setError(err.message);
+      throw err;
+    }
+  };
+
   // Lấy token
   const getAccessToken = async () => {
     try {
@@ -205,6 +285,10 @@ export const AuthProvider = ({ children }) => {
     forgotPassword,
     confirmForgotPassword,
     changePassword,
+    confirmSignInWithNewPassword,
+    updateEmail,
+    verifyEmailUpdate,
+    updateName,
     getAccessToken,
     getIdToken,
     checkUser,

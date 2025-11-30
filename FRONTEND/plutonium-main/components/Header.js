@@ -169,7 +169,7 @@ export default function Header() {
               >
                 <span className="text-base md:text-sm">👤</span>
                 <span className="text-base md:text-sm max-w-[150px] truncate">
-                  {user.username || user.email || 'User'}
+                  {user.attributes?.name || user.attributes?.email || user.username || 'User'}
                 </span>
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -182,9 +182,16 @@ export default function Header() {
                   <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
                     <p className="text-sm text-gray-500 dark:text-gray-400">Đăng nhập với</p>
                     <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                      {user.username || user.email}
+                      {user.attributes?.name || user.attributes?.email || user.username || 'User'}
                     </p>
                   </div>
+                  <Link
+                    href="/settings"
+                    onClick={() => setShowUserMenu(false)}
+                    className="block w-full text-left px-4 py-2 text-sm text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 transition duration-200"
+                  >
+                    ⚙️ Cài đặt
+                  </Link>
                   <button
                     onClick={handleSignOut}
                     className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition duration-200"
