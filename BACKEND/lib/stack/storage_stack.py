@@ -41,7 +41,8 @@ class StorageStack(Stack):
             cors_origins = [
                 "http://localhost:3000",
                 "http://localhost:3001",
-                "https://fe-ken.d19yocdajp91pq.amplifyapp.com"
+                "https://fe-ken.d19yocdajp91pq.amplifyapp.com",
+                "https://fe.dvudr9zq0lvp8.amplifyapp.com"
             ]
 
         bucket = s3.Bucket(

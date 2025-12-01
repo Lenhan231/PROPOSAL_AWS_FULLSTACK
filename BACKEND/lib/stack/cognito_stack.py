@@ -47,26 +47,38 @@ class CognitoStack(Stack):
                 require_digits=True,
                 require_symbols=True,
             ),
+            custom_attributes={
+                "user_name": cognito.StringAttribute(
+                    mutable=True,
+                    min_len=1,
+                    max_len=256,
+                ),
+            },
         )
 
         # User Pool Client (for frontend)
         user_pool_client = user_pool.add_client(
             "UserPoolClient",
             auth_flows=cognito.AuthFlow(
-                user_password=True,      # Cho phép username/password auth
-                user_srp=True,           # Secure Remote Password protocol
-                admin_user_password=True,  # Allow ADMIN_NO_SRP_AUTH for testing
+                user_password=True,
+                user_srp=True,
+                admin_user_password=True,
             ),
-            generate_secret=False,       # Public client (frontend không cần secret)
+            generate_secret=False,
             id_token_validity=Duration.hours(1),
             access_token_validity=Duration.hours(1),
             refresh_token_validity=Duration.days(30),
             read_attributes=cognito.ClientAttributes()
-                .with_standard_attributes(email=True, email_verified=True),
-            write_attributes=cognito.ClientAttributes() 
-                .with_standard_attributes(email=True),
-
+                .with_standard_attributes(email=True, email_verified=True)
+                .with_custom_attributes("user_name"),
+            write_attributes=cognito.ClientAttributes()
+                .with_standard_attributes(email=True)
+                .with_custom_attributes("user_name"),
         )
+        
+        # Override CFN to ensure write_attributes is set
+        cfn_client = user_pool_client.node.default_child
+        cfn_client.write_attributes = ["email", "custom:user_name"]
 
         # Pre Token Generation trigger to inject cognito:groups into tokens
         pre_token_fn = _lambda.Function(
