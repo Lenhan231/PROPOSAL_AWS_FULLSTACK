@@ -48,7 +48,7 @@ export default function Home() {
 
             {/* Subtitle */}
             <p className="max-w-3xl mx-auto mb-10 text-xl leading-relaxed text-gray-600 dark:text-gray-300 md:text-2xl">
-              Khám phá hàng nghìn tài liệu PDF/ePub chất lượng cao. 
+              Khám phá hàng loạt tài liệu PDF/ePub chất lượng cao. 
               Chia sẻ kiến thức, xây dựng cộng đồng học tập.
             </p>
 
