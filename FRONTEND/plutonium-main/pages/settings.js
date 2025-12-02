@@ -13,7 +13,7 @@ export default function Settings() {
 }
 
 function SettingsContent() {
-  const { user, changePassword, updateEmail, verifyEmailUpdate, updateName } = useAuth();
+  const { user, displayName, changePassword, updateEmail, verifyEmailUpdate, updateName, fetchUserProfile } = useAuth();
   
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
@@ -38,10 +38,36 @@ function SettingsContent() {
     if (user?.attributes?.email) {
       setEmail(user.attributes.email);
     }
-    if (user?.attributes?.name) {
+  }, [user]);
+
+  // Sync display name from context
+  useEffect(() => {
+    if (displayName) {
+      setName(displayName);
+    } else if (user?.attributes?.name) {
       setName(user.attributes.name);
     }
-  }, [user]);
+  }, [displayName, user]);
+
+  // Always fetch latest profile name from API on load
+  useEffect(() => {
+    let isMounted = true;
+    const loadProfile = async () => {
+      if (!user) return;
+      try {
+        const profile = await fetchUserProfile();
+        if (isMounted && profile?.user_name) {
+          setName(profile.user_name);
+        }
+      } catch (err) {
+        console.warn('Không thể tải profile từ API:', err);
+      }
+    };
+    loadProfile();
+    return () => {
+      isMounted = false;
+    };
+  }, [user, fetchUserProfile]);
 
   const handlePasswordSubmit = async (e) => {
     e.preventDefault();
@@ -183,7 +209,7 @@ function SettingsContent() {
                   Tên hiển thị hiện tại
                 </label>
                 <div className="text-gray-900 dark:text-white font-medium">
-                  {name || user?.attributes?.name || 'Chưa đặt tên'}
+                  {name || displayName || user?.attributes?.name || 'Chưa đặt tên'}
                 </div>
               </div>
               <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">

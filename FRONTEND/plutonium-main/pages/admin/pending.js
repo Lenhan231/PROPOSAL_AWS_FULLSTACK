@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import Head from "next/head";
+import { useRouter } from "next/router";
 import Header from "../../components/Header";
 import Footer from "../../components/Footer";
 import ProtectedRoute from "../../components/ProtectedRoute";
@@ -297,6 +298,8 @@ function StatCard({ title, value, icon, color }) {
 }
 
 function PendingBookCard({ book, onApprove, onReject }) {
+  const router = useRouter();
+
   const formatDate = (dateString) => {
     if (!dateString) return "Không rõ";
     return new Date(dateString).toLocaleDateString("vi-VN", {
@@ -314,8 +317,13 @@ function PendingBookCard({ book, onApprove, onReject }) {
   };
 
   const handlePreview = () => {
-    // Open book preview in new tab
-    window.open(`/read/${book.bookId}`, '_blank');
+    // Try to open in new tab, if blocked, navigate in current window
+    const newWindow = window.open(`/read/${book.bookId}`, '_blank');
+    
+    // If popup was blocked, navigate in current window
+    if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
+      router.push(`/read/${book.bookId}`);
+    }
   };
 
   const getUploaderDisplay = () =>

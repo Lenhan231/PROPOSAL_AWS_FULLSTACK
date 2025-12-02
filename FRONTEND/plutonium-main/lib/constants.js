@@ -13,6 +13,7 @@ export const API_ENDPOINTS = {
   
   // Admin
   PENDING_BOOKS: '/admin/books/pending',
+  ADMIN_PREVIEW_URL: (bookId) => `/admin/books/${bookId}/preview-url`,
   APPROVE_BOOK: (bookId) => `/admin/books/${bookId}/approve`,
   REJECT_BOOK: (bookId) => `/admin/books/${bookId}/reject`,
 };

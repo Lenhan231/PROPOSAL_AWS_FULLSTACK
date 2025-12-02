@@ -1,5 +1,138 @@
 # Changelog - Frontend
 
+## [0.3.0] - 2025-12-02
+
+### ✨ Enhanced - Book Reading Experience
+
+#### Read/Preview Page (`pages/read/[bookId].js`)
+- **Complete UI Overhaul** - Transformed from simple viewer to preview + download experience
+  - Added comprehensive book information card with gradient cover placeholder
+  - Added preview notice banner to inform users about preview mode
+  - Added dual download CTAs (header button + bottom call-to-action section)
+  - Added responsive layout with mobile-first design
+  - Added dark mode support throughout all components
+
+- **Book Information Display**
+  - Added book metadata card showing:
+    - Gradient cover placeholder with book emoji (📚)
+    - Book title, author, and description
+    - Upload date with calendar icon (📅)
+    - Page count with document icon (📄)
+  - Added flex layout adapting to mobile/desktop screens
+  - Added proper text styling with truncation for long titles
+
+- **Download Functionality**
+  - Added `handleDownload()` function for file downloads
+  - Added programmatic download using temporary `<a>` element
+  - Added `isDownloading` state with loading spinner
+  - Added proper filename extraction from book metadata
+  - Added error handling with user-friendly alerts
+  - Uses `responseContentDisposition: 'attachment'` for proper downloads
+
+- **Preview Notice Section**
+  - Added blue information banner explaining preview mode
+  - Added info icon (ℹ️) for visual clarity
+  - Added instructions to download for offline reading
+  - Added responsive padding and styling
+
+- **Enhanced PDF Viewer**
+  - Maintained embedded PDF preview with `<object>` and `<iframe>` tags
+  - Added responsive sizing (aspect ratio 3:4 on mobile, 800px height on desktop)
+  - Added white/gray-800 card background with rounded corners
+  - Added proper shadow and overflow handling
+
+- **Download Call-to-Action Section**
+  - Added gradient background (blue-600 to purple-600)
+  - Added compelling copy: "Thích cuốn sách này?"
+  - Added large download button with icon
+  - Added hover effects and disabled states
+  - Added loading state during download
+
+- **State Management Updates**
+  - Added `downloadUrl` state (reserved for future use)
+  - Added `bookData` state object for metadata
+  - Added `isDownloading` state for download progress
+  - Updated `loadBookData()` to extract full metadata from API response
+  - Added proper error messages for different scenarios
+
+- **Improved Error Handling**
+  - Enhanced 404 error: "Sách không tồn tại hoặc chưa được duyệt"
+  - Enhanced 403 error: "Bạn không có quyền đọc sách này"
+  - Added download error alerts with specific messages
+  - Added fallback values for missing metadata
+
+- **UI/UX Improvements**
+  - Added sticky header for easy navigation
+  - Added back button with arrow icon
+  - Added proper spacing with Tailwind utilities
+  - Added max-width container (max-w-7xl) for better readability
+  - Added loading skeleton with spinner
+  - Added emoji-based error states (😔)
+  - Added proper color scheme matching app design
+
+#### Admin Pending Page (`pages/admin/pending.js`)
+- **Book Preview Feature** - Admins can now preview books before approval
+  - Added `useRouter` import from Next.js
+  - Updated `handlePreview()` function with popup blocking fallback
+  - Opens book preview in new tab using `window.open()`
+  - Falls back to same-window navigation if popup blocked
+  - Provides same preview experience as regular users
+  - Admins can return via back button or close tab
+
+- **Preview Implementation**
+  ```javascript
+  const handlePreview = () => {
+    const newWindow = window.open(`/read/${book.bookId}`, '_blank');
+    if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
+      router.push(`/read/${book.bookId}`);
+    }
+  };
+  ```
+
+- **Benefits**
+  - Quality control before approval
+  - Verify PDF format and readability
+  - Check content matches metadata
+  - Same interface as end users see
+
+#### Documentation
+- **Created** `docs/READ_PAGE.md` - Comprehensive documentation for read/preview page
+  - Overview and feature list
+  - UI component breakdown
+  - Technical implementation details
+  - API call documentation
+  - Error handling reference
+  - User flow diagrams
+  - Security considerations
+  - Performance optimizations
+  - Future enhancement ideas
+  - Testing checklist
+  - Change log
+
+- **Updated** `docs/ADMIN_PENDING_PAGE.md` - Added book preview feature documentation
+  - Preview function implementation
+  - Feature description
+  - User flow
+  - Benefits for admin workflow
+  - Moved "Book Preview" from future enhancements to implemented features
+
+### 🔧 Technical Changes
+- Replaced simple PDF viewer with preview + download model
+- Added proper Content-Disposition handling (inline vs attachment)
+- Improved metadata extraction from API responses
+- Enhanced responsive design system
+- Added comprehensive error boundaries
+- Added popup blocking detection and fallback
+
+### 🎨 Design Updates
+- Updated color scheme with gradient accents
+- Added card-based layout for better visual hierarchy
+- Improved mobile responsiveness
+- Enhanced dark mode contrast
+- Added consistent icon usage throughout
+
+---
+
 ## [0.2.0] - 2025-11-30
 
 ### ✨ Added - AWS Amplify Authentication & Settings
