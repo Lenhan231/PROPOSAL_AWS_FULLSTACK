@@ -317,13 +317,16 @@ function PendingBookCard({ book, onApprove, onReject }) {
   };
 
   const handlePreview = () => {
-    // Try to open in new tab, if blocked, navigate in current window
-    const newWindow = window.open(`/read/${book.bookId}`, '_blank');
-    
-    // If popup was blocked, navigate in current window
-    if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
-      router.push(`/read/${book.bookId}`);
-    }
+    // Navigate with book metadata for immediate display
+    router.push({
+      pathname: `/read/${book.bookId}`,
+      query: {
+        title: book.title,
+        author: book.author,
+        description: book.description,
+        pages: book.pages
+      }
+    });
   };
 
   const getUploaderDisplay = () =>
