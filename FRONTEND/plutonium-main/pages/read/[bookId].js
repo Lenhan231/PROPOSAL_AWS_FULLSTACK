@@ -12,34 +12,12 @@ export default function ReadBookPage() {
   const [pdfUrl, setPdfUrl] = useState("");
   const [downloadUrl, setDownloadUrl] = useState("");
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
   const [bookData, setBookData] = useState(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isAdmin, setIsAdmin] = useState(null); // null = checking, false = not admin, true = admin
-  const [preventNavigation, setPreventNavigation] = useState(false);
   const iframeRef = useRef(null);
 
-  // Block back navigation when there's an error
-  useEffect(() => {
-    if (error) {
-      const handlePopState = (e) => {
-        if (window.confirm('Bạn có chắc muốn rời khỏi trang này?')) {
-          return true;
-        }
-        e.preventDefault();
-        window.history.pushState(null, '', window.location.href);
-        return false;
-      };
-
-      window.history.pushState(null, '', window.location.href);
-      window.addEventListener('popstate', handlePopState);
-
-      return () => {
-        window.removeEventListener('popstate', handlePopState);
-      };
-    }
-  }, [error]);
-
+  // Check admin status
   useEffect(() => {
     const checkAdmin = async () => {
       if (!user) {
@@ -81,8 +59,6 @@ export default function ReadBookPage() {
   const loadBookData = async () => {
     try {
       setLoading(true);
-      setError("");
-      setPreventNavigation(false);
       
       console.log('📖 Loading book data for:', bookId);
       console.log('👤 User is admin:', isAdmin);
@@ -119,12 +95,13 @@ export default function ReadBookPage() {
             console.error('Admin preview error:', adminErr.response?.status, adminErr.response?.data);
             console.error('Regular read error:', fallbackErr.response?.status, fallbackErr.response?.data);
             
-            // Both failed - throw a special error for admin preview
-            const error = new Error('ADMIN_PREVIEW_NOT_AVAILABLE');
-            error.adminError = adminErr;
-            error.fallbackError = fallbackErr;
-            error.isAdminPreviewIssue = true;
-            throw error;
+            // Redirect to dedicated error page for admin preview issues
+            const errorReason = adminErr.response?.status === 404 
+              ? 'admin_endpoint_not_found' 
+              : 'admin_preview_failed';
+            
+            router.replace(`/read-error?bookId=${bookId}&isAdmin=true&reason=${errorReason}`);
+            return;
           }
         }
       } else {
@@ -148,77 +125,20 @@ export default function ReadBookPage() {
           pages: result.pages || "N/A"
         });
       } else {
-        setError("Không thể lấy URL đọc sách");
-        setPreventNavigation(true);
+        // No URL received - redirect to error page
+        router.replace(`/read-error?bookId=${bookId}&isAdmin=${isAdmin}&reason=no_url`);
       }
     } catch (err) {
       console.error("❌ Failed to load book:", err);
-      setPreventNavigation(true); // Prevent any navigation
       
-      // Handle admin preview specific errors
-      if (err.isAdminPreviewIssue) {
-        const adminStatus = err.adminError?.response?.status;
-        const fallbackStatus = err.fallbackError?.response?.status;
-        
-        console.error('🔴 Admin preview issue detected');
-        console.error('Admin endpoint status:', adminStatus);
-        console.error('Fallback endpoint status:', fallbackStatus);
-        
-        // Admin preview endpoint doesn't exist + book is pending
-        if (adminStatus === 404 && (fallbackStatus === 403 || fallbackStatus === 404)) {
-          setError(
-            "⚠️ KHÔNG THỂ XEM TRƯỚC SÁCH PENDING\n\n" +
-            "🔧 Backend chưa triển khai endpoint xem trước cho admin.\n\n" +
-            "📝 Endpoint cần thiết:\n" +
-            "GET /admin/books/{bookId}/preview-url\n\n" +
-            "📖 Tài liệu: BACKEND/ADMIN_PREVIEW_ENDPOINT.md\n\n" +
-            "💡 Hiện tại chỉ có thể xem sách đã DUYỆT (APPROVED)."
-          );
-          return;
-        }
-        
-        // Admin preview endpoint doesn't exist but regular endpoint works
-        if (adminStatus === 404) {
-          setError(
-            "⚠️ Backend chưa hỗ trợ admin preview endpoint.\n" +
-            "Endpoint /admin/books/{bookId}/preview-url chưa được triển khai.\n\n" +
-            "Vui lòng liên hệ team phát triển."
-          );
-          return;
-        }
-      }
+      // Redirect to error page with context
+      const errorReason = err.response?.status === 404 
+        ? 'book_not_found' 
+        : err.response?.status === 403 
+        ? 'access_denied' 
+        : 'unknown_error';
       
-      const errorMsg = err.response?.data?.message || err.response?.data?.error || err.message;
-      
-      if (err.response?.status === 404) {
-        if (isAdmin) {
-          setError(
-            "⚠️ SÁCH KHÔNG TỒN TẠI HOẶC ĐANG CHỜ DUYỆT\n\n" +
-            "Nếu sách đang ở trạng thái PENDING:\n" +
-            "Backend cần triển khai endpoint:\n" +
-            "GET /admin/books/{bookId}/preview-url\n\n" +
-            "Xem tài liệu: BACKEND/ADMIN_PREVIEW_ENDPOINT.md"
-          );
-        } else {
-          setError("Sách không tồn tại hoặc chưa được duyệt");
-        }
-      } else if (err.response?.status === 403) {
-        if (isAdmin) {
-          setError(
-            "⚠️ KHÔNG THỂ TRUY CẬP SÁCH NÀY\n\n" +
-            "Có thể sách đang ở trạng thái PENDING.\n" +
-            "Admin cần endpoint đặc biệt để xem sách pending:\n" +
-            "GET /admin/books/{bookId}/preview-url"
-          );
-        } else {
-          setError("Bạn không có quyền đọc sách này");
-        }
-      } else {
-        setError(errorMsg || "Không thể tải sách");
-      }
-      
-      // Force stay on error page - do NOT navigate away
-      console.log('🛑 Error set. Preventing navigation.');
+      router.replace(`/read-error?bookId=${bookId}&isAdmin=${isAdmin}&reason=${errorReason}`);
     } finally {
       setLoading(false);
     }
@@ -327,88 +247,7 @@ export default function ReadBookPage() {
           </div>
         )}
 
-        {error && (
-          <div className="flex items-center justify-center min-h-[500px]">
-            <div className="max-w-3xl p-8 mx-4">
-              {/* Error Card */}
-              <div className="p-8 bg-white border-2 border-red-300 rounded-2xl shadow-2xl dark:bg-gray-800 dark:border-red-700">
-                <div className="text-center mb-6">
-                  <div className="mb-4 text-7xl">⚠️</div>
-                  <h2 className="mb-4 text-3xl font-bold text-red-600 dark:text-red-400">
-                    Không thể tải sách
-                  </h2>
-                </div>
-                
-                {/* Error Message */}
-                <div className="p-6 mb-6 bg-red-50 border-2 border-red-300 rounded-xl dark:bg-red-900/30 dark:border-red-700">
-                  <p className="text-base text-red-900 dark:text-red-100 font-medium whitespace-pre-line leading-relaxed">
-                    {error}
-                  </p>
-                </div>
-                
-                {/* Additional Info for Admins */}
-                {isAdmin && (error.includes('PENDING') || error.includes('endpoint') || error.includes('backend')) && (
-                  <div className="p-6 mb-6 bg-yellow-50 border-2 border-yellow-300 rounded-xl dark:bg-yellow-900/20 dark:border-yellow-700">
-                    <p className="text-lg font-bold text-yellow-900 dark:text-yellow-100 mb-3 flex items-center gap-2">
-                      <span className="text-2xl">🔧</span>
-                      Hướng dẫn sửa lỗi (Dành cho Admin):
-                    </p>
-                    <div className="space-y-3 text-sm text-yellow-900 dark:text-yellow-100">
-                      <p className="font-semibold">
-                        ⚡ Backend thiếu endpoint xem trước cho admin:
-                      </p>
-                      <div className="p-3 bg-yellow-100 dark:bg-yellow-900/40 rounded-lg font-mono text-xs">
-                        GET /admin/books/{'{bookId}'}/preview-url
-                      </div>
-                      <p>
-                        📄 <strong>Tài liệu triển khai:</strong><br/>
-                        <code className="px-2 py-1 bg-yellow-100 dark:bg-yellow-900/40 rounded text-xs">
-                          BACKEND/ADMIN_PREVIEW_ENDPOINT.md
-                        </code>
-                      </p>
-                      <p className="pt-2 border-t-2 border-yellow-200 dark:border-yellow-800">
-                        💡 <strong>Giải pháp tạm thời:</strong><br/>
-                        Chỉ có thể xem sách đã DUYỆT (status = APPROVED).<br/>
-                        Duyệt sách trước để xem, hoặc đợi backend triển khai endpoint.
-                      </p>
-                    </div>
-                  </div>
-                )}
-                
-                {/* Console Logs Info */}
-                <div className="p-4 mb-6 bg-gray-50 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600">
-                  <p className="text-sm text-gray-700 dark:text-gray-300">
-                    <span className="font-semibold">🔍 Debug Info:</span><br/>
-                    Mở Console (F12) để xem chi tiết lỗi từ API
-                  </p>
-                </div>
-                
-                {/* Actions */}
-                <div className="flex gap-4 justify-center flex-wrap">
-                  <button
-                    onClick={() => router.back()}
-                    className="px-8 py-3 text-white font-semibold transition-colors bg-blue-600 rounded-xl hover:bg-blue-700 shadow-lg hover:shadow-xl transform hover:scale-105"
-                  >
-                    ← Quay lại Dashboard
-                  </button>
-                  <button
-                    onClick={() => {
-                      console.log('🔄 Retrying...');
-                      setError("");
-                      setPreventNavigation(false);
-                      loadBookData();
-                    }}
-                    className="px-8 py-3 text-blue-700 font-semibold bg-blue-50 border-2 border-blue-300 rounded-xl hover:bg-blue-100 dark:bg-blue-900/20 dark:border-blue-700 dark:text-blue-300 shadow-lg hover:shadow-xl transform hover:scale-105"
-                  >
-                    🔄 Thử lại
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {!loading && !error && pdfUrl && (
+        {!loading && pdfUrl && (
           <div className="space-y-6">
             {/* Book Info Card */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
