@@ -30,7 +30,8 @@ from aws_cdk import Duration
 class CognitoStack(Stack):
     """Stack for Cognito User Pool and authentication"""
 
-    def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
+    def __init__(self, scope: Construct, construct_id: str, database_stack=None, **kwargs) -> None:
+        self.database_stack = database_stack
         super().__init__(scope, construct_id, **kwargs)
 
         # This is a placeholder for the stack structure
@@ -60,22 +61,22 @@ class CognitoStack(Stack):
         user_pool_client = user_pool.add_client(
             "UserPoolClient",
             auth_flows=cognito.AuthFlow(
-                user_password=True,
-                user_srp=True,
-                admin_user_password=True,
+                user_password=True,      # Cho phép username/password auth
+                user_srp=True,           # Secure Remote Password protocol
+                admin_user_password=True,  # Allow ADMIN_NO_SRP_AUTH for testing
             ),
-            generate_secret=False,
+            generate_secret=False,       # Public client (frontend không cần secret)
             id_token_validity=Duration.hours(1),
             access_token_validity=Duration.hours(1),
             refresh_token_validity=Duration.days(30),
             read_attributes=cognito.ClientAttributes()
                 .with_standard_attributes(email=True, email_verified=True)
                 .with_custom_attributes("user_name"),
-            write_attributes=cognito.ClientAttributes()
+            write_attributes=cognito.ClientAttributes() 
                 .with_standard_attributes(email=True)
                 .with_custom_attributes("user_name"),
         )
-        
+
         # Override CFN to ensure write_attributes is set
         cfn_client = user_pool_client.node.default_child
         cfn_client.write_attributes = ["email", "custom:user_name"]

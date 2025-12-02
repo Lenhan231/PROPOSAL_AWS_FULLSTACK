@@ -120,5 +120,37 @@ class DatabaseStack(Stack):
             export_name=f"{construct_id}-MainTable-Arn",
         )
 
+        # === UserProfile Table – store user metadata ===
+        user_profile_table = dynamodb.Table(
+            self,
+            "UserProfileTable",
+            table_name="UserProfile",
+            partition_key=dynamodb.Attribute(
+                name="user_id",  # Cognito sub
+                type=dynamodb.AttributeType.STRING,
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            removal_policy=RemovalPolicy.DESTROY,
+        )
+
+        # GSI for email lookup
+        user_profile_table.add_global_secondary_index(
+            index_name="EmailIndex",
+            partition_key=dynamodb.Attribute(
+                name="email",
+                type=dynamodb.AttributeType.STRING,
+            ),
+            projection_type=dynamodb.ProjectionType.ALL,
+        )
+
+        CfnOutput(
+            self,
+            "UserProfileTableName",
+            value=user_profile_table.table_name,
+            description="DynamoDB UserProfile table name",
+            export_name=f"{construct_id}-UserProfile-Name",
+        )
+
         # Store table reference for other stacks
         self.table = table
+        self.user_profile_table = user_profile_table

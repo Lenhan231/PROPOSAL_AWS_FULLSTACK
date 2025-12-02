@@ -305,6 +305,52 @@ class ApiStack(Stack):
         if uploads_bucket:
             uploads_bucket.grant_read_write(reject_book_fn)
 
+        # updateUserProfile Lambda
+        user_profile_table_name = (
+            database_stack.user_profile_table.table_name
+            if database_stack and hasattr(database_stack, "user_profile_table")
+            else "UserProfile"
+        )
+
+        update_user_profile_fn = _lambda.Function(
+            self,
+            "UpdateUserProfileFn",
+            runtime=_lambda.Runtime.PYTHON_3_12,
+            handler="update_user_profile.handler.handler",
+            code=_lambda.Code.from_asset(
+                "./lambda",
+                exclude=["**/__pycache__", "*.pyc", ".pytest_cache", "tests"],
+            ),
+            timeout=Duration.seconds(30),
+            memory_size=256,
+            environment={
+                "USER_PROFILE_TABLE": user_profile_table_name,
+            },
+        )
+        lambdas["updateUserProfile"] = update_user_profile_fn
+
+        get_user_profile_fn = _lambda.Function(
+            self,
+            "GetUserProfileFn",
+            runtime=_lambda.Runtime.PYTHON_3_12,
+            handler="get_user_profile.handler.handler",
+            code=_lambda.Code.from_asset(
+                "./lambda",
+                exclude=["**/__pycache__", "*.pyc", ".pytest_cache", "tests"],
+            ),
+            timeout=Duration.seconds(30),
+            memory_size=256,
+            environment={
+                "USER_PROFILE_TABLE": user_profile_table_name,
+            },
+        )
+        lambdas["getUserProfile"] = get_user_profile_fn
+
+        # Grant permissions to UserProfile table
+        if database_stack and hasattr(database_stack, "user_profile_table"):
+            database_stack.user_profile_table.grant_read_write_data(update_user_profile_fn)
+            database_stack.user_profile_table.grant_read_data(get_user_profile_fn)
+    
         # Note: validate_mime_type Lambda moved to ProcessingStack
         # to avoid cyclic dependencies with S3 event notifications
 
@@ -318,6 +364,8 @@ class ApiStack(Stack):
             ("/admin/books/pending", apigw.HttpMethod.GET, list_pending_books_fn),
             ("/admin/books/{bookId}/approve", apigw.HttpMethod.POST, approve_book_fn),
             ("/admin/books/{bookId}/reject", apigw.HttpMethod.POST, reject_book_fn),
+            ("/user/profile", apigw.HttpMethod.PUT, update_user_profile_fn),
+            ("/user/profile", apigw.HttpMethod.GET, get_user_profile_fn),
         ]
 
         for path, method, handler_fn in routes:

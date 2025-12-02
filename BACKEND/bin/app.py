@@ -46,20 +46,21 @@ env = cdk.Environment(
 # Stack name prefix
 stack_prefix = f"OnlineLibrary-{env_name}"
 
-# Phase 1: CognitoStack
-cognito_stack = CognitoStack(
-    app,
-    f"{stack_prefix}-Cognito",
-    env=env,
-    description="Cognito User Pool for authentication"
-)
-
-# Phase 2: DatabaseStack
+# Phase 2: DatabaseStack (create first for Cognito to reference)
 database_stack = DatabaseStack(
     app,
     f"{stack_prefix}-Database",
     env=env,
     description="Database for Books metadata"
+)
+
+# Phase 1: CognitoStack
+cognito_stack = CognitoStack(
+    app,
+    f"{stack_prefix}-Cognito",
+    database_stack=database_stack,
+    env=env,
+    description="Cognito User Pool for authentication"
 )
 
 # Phase 3: StorageStack
