@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { Amplify } from 'aws-amplify';
 import {
   signUp,
@@ -11,7 +11,6 @@ import {
   getCurrentUser,
   fetchAuthSession,
   updatePassword,
-  fetchUserAttributes,
   confirmSignIn,
   updateUserAttribute,
   confirmUserAttribute,
@@ -27,24 +26,88 @@ export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
+  const [profile, setProfile] = useState(null);
+  const [displayName, setDisplayName] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const initRef = useRef(false);
+  const checkSeq = useRef(0);
+
+  // Helpers to persist display name locally (avoid rollback to email on refresh)
+  const persistDisplayName = (name) => {
+    const value = name || '';
+    setDisplayName(value || null);
+    if (typeof window !== 'undefined') {
+      if (value) localStorage.setItem('displayName', value);
+      else localStorage.removeItem('displayName');
+    }
+  };
+
+  const getCachedDisplayName = () => {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem('displayName') || null;
+  };
 
   // Kiểm tra user hiện tại khi load app
   useEffect(() => {
+    if (initRef.current) return;
+    initRef.current = true;
     checkUser();
   }, []);
 
   // Kiểm tra user đã đăng nhập chưa
   const checkUser = async () => {
+    const seq = ++checkSeq.current;
     try {
+      const cachedName = displayName || getCachedDisplayName();
       const currentUser = await getCurrentUser();
-      const attributes = await fetchUserAttributes();
-      setUser({ ...currentUser, attributes });
+      // Pull minimal attributes from token to avoid extra Cognito calls
+      const session = await fetchAuthSession().catch(() => null);
+      const idPayload = session?.tokens?.idToken?.payload || {};
+      const accessPayload = session?.tokens?.accessToken?.payload || {};
+      let attributes = {
+        email: idPayload.email || accessPayload.username || '',
+        sub: idPayload.sub || accessPayload.sub || currentUser?.userId || '',
+        username: currentUser?.username || idPayload['cognito:username'] || '',
+      };
+
+      let profileData = null;
+      try {
+        profileData = await fetchUserProfile();
+        const profileName =
+          profileData?.user_name ||
+          profileData?.profile?.user_name ||
+          profileData?.profile?.name;
+        if (profileName) {
+          attributes = { ...attributes, name: profileName };
+        }
+      } catch (profileErr) {
+        console.warn('Unable to fetch profile from API:', profileErr);
+      }
+
+      // Drop stale responses if a newer checkUser started
+      if (seq !== checkSeq.current) return;
+
+      const normalizedProfile = profileData?.profile || profileData || null;
+      setProfile(normalizedProfile);
+
+      // Prefer DynamoDB profile name, then Cognito name, then keep existing displayName before falling back
+      const nextDisplayName =
+        normalizedProfile?.user_name ||
+        attributes?.name ||
+        cachedName ||
+        attributes?.email ||
+        currentUser?.username;
+      if (normalizedProfile?.user_name || attributes?.name || cachedName) {
+        persistDisplayName(normalizedProfile?.user_name || attributes?.name || cachedName);
+      }
+      setUser({ ...currentUser, attributes, profile: normalizedProfile, displayName: nextDisplayName });
     } catch (err) {
       setUser(null);
     } finally {
-      setLoading(false);
+      if (seq === checkSeq.current) {
+        setLoading(false);
+      }
     }
   };
 
@@ -235,13 +298,39 @@ export const AuthProvider = ({ children }) => {
   const updateName = async (newName) => {
     try {
       setError(null);
-      await updateUserAttribute({
-        userAttribute: {
-          attributeKey: 'name',
-          value: newName,
+      const token = await getIdToken();
+      if (!token) throw new Error('Không tìm thấy phiên đăng nhập. Vui lòng đăng nhập lại.');
+      if (!process.env.NEXT_PUBLIC_API_URL) throw new Error('API endpoint chưa được cấu hình.');
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/user/profile`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
         },
+        body: JSON.stringify({ user_name: newName }),
       });
-      // Refresh user data
+
+      if (!response.ok) {
+        const message = await response.text().catch(() => '');
+        throw new Error(message || 'Không thể cập nhật tên. Vui lòng thử lại.');
+      }
+
+      // Update local state immediately
+      setProfile((prev) => ({ ...(prev || {}), user_name: newName }));
+      persistDisplayName(newName);
+      setUser((prev) => {
+        if (!prev) return prev;
+        const updatedAttributes = { ...(prev.attributes || {}), name: newName };
+        const updatedProfile = { ...(prev.profile || {}), user_name: newName };
+        const displayName =
+          newName ||
+          prev.displayName ||
+          updatedAttributes.email ||
+          prev.username;
+        return { ...prev, attributes: updatedAttributes, profile: updatedProfile, displayName };
+      });
+
       await checkUser();
       return true;
     } catch (err) {
@@ -249,6 +338,34 @@ export const AuthProvider = ({ children }) => {
       setError(err.message);
       throw err;
     }
+  };
+
+  // Lấy profile (tên hiển thị lưu trong DynamoDB)
+  const fetchUserProfile = async () => {
+    const token = await getIdToken();
+    if (!token) throw new Error('Chưa đăng nhập');
+    if (!process.env.NEXT_PUBLIC_API_URL) throw new Error('API endpoint chưa được cấu hình.');
+
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/user/profile`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      const message = await res.text().catch(() => '');
+      throw new Error(message || `Lỗi ${res.status}`);
+    }
+    const profileData = await res.json();
+    const normalizedProfile = profileData?.profile || profileData || {};
+    const nameFromProfile =
+      normalizedProfile.user_name ||
+      normalizedProfile.name;
+    // Debug helper: see what backend returns to explain rollback cases
+    if (!nameFromProfile) {
+      console.warn('Profile API returned no user_name; using fallback (email/username)', profileData);
+    }
+    if (nameFromProfile) {
+      persistDisplayName(nameFromProfile);
+    }
+    return normalizedProfile;
   };
 
   // Lấy token
@@ -265,7 +382,7 @@ export const AuthProvider = ({ children }) => {
   // Lấy ID token (dùng cho API authorization)
   const getIdToken = async () => {
     try {
-      const session = await fetchAuthSession();
+      const session = await fetchAuthSession({ forceRefresh: true });
       return session.tokens?.idToken?.toString();
     } catch (err) {
       console.error('Get ID token error:', err);
@@ -275,6 +392,8 @@ export const AuthProvider = ({ children }) => {
 
   const value = {
     user,
+    profile,
+    displayName: displayName || user?.displayName || profile?.user_name || profile?.name || user?.attributes?.name || user?.attributes?.email || user?.username,
     loading,
     error,
     signUpUser,
@@ -289,6 +408,7 @@ export const AuthProvider = ({ children }) => {
     updateEmail,
     verifyEmailUpdate,
     updateName,
+    fetchUserProfile,
     getAccessToken,
     getIdToken,
     checkUser,
