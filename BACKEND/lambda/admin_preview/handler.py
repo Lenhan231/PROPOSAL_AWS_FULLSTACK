@@ -128,9 +128,9 @@ def _get_book_file_path(book_id: str, table_name: str) -> Optional[str]:
         if not item:
             return None
 
-        # Check if book is 
+        # Check if book is not Pending
         if item.get("status") != "PENDING":
-            logger.warning(f"Book {book_id} is not approved (status: {item.get('status')})")
+            logger.warning(f"Book {book_id} is not Pending (status: {item.get('status')})")
             return None
 
         # Get file path from metadata
@@ -222,13 +222,9 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             # Use CloudFront signed URL if credentials provided
             try:
                 private_key = base64.b64decode(private_key_b64).decode()
-            except Exception as e:
-                logger.error(f"Error decoding private key: {str(e)}")
-                error_body = build_error_response(
-                    error_code=ErrorCode.INTERNAL_ERROR,
-                    message="Invalid CloudFront private key",
-                )
-                return api_response(status_code=500, body=error_body)
+            except Exception:
+                logger.warning("CloudFront private key not base64-encoded, using raw value")
+                private_key = private_key_b64
 
             signed_url = _generate_signed_url(
                 cloudfront_domain=cloudfront_domain,
@@ -274,7 +270,6 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             message="Internal server error",
         )
         return api_response(status_code=500, body=error_body)
-
 
 
 

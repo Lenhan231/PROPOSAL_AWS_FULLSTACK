@@ -1,5 +1,5 @@
 {
-    "app": "python3 bin/app.py",
+    "app": "../.venv/bin/python bin/app.py",
     "watch": {
     "include": ["**"],
     "exclude": [

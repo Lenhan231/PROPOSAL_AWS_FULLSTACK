@@ -99,6 +99,22 @@ class ApiStack(Stack):
         # Get CloudFront credentials from context (cdk deploy -c cloudfront_key_pair_id=... -c cloudfront_private_key=...)
         cloudfront_key_pair_id = self.node.try_get_context("cloudfront_key_pair_id")
         cloudfront_private_key = self.node.try_get_context("cloudfront_private_key")
+        cloudfront_key_pair_id_param = self.node.try_get_context("cloudfront_key_pair_id_param")
+        cloudfront_private_key_param = self.node.try_get_context("cloudfront_private_key_param")
+
+        # Optional: fetch from SSM parameters if context not provided
+        if not cloudfront_key_pair_id and cloudfront_key_pair_id_param:
+            cloudfront_key_pair_id = ssm.StringParameter.from_string_parameter_attributes(
+                self,
+                "CloudFrontKeyPairIdParam",
+                parameter_name=cloudfront_key_pair_id_param,
+            ).string_value
+        if not cloudfront_private_key and cloudfront_private_key_param:
+            cloudfront_private_key = ssm.StringParameter.from_string_parameter_attributes(
+                self,
+                "CloudFrontPrivateKeyParam",
+                parameter_name=cloudfront_private_key_param,
+            ).string_value
 
         # Only create secret if credentials provided
         cloudfront_secret = None
@@ -204,12 +220,22 @@ class ApiStack(Stack):
             admin_preview_env["CLOUDFRONT_PRIVATE_KEY"] = base64.b64encode(
                 cloudfront_private_key.encode()
             ).decode()
+        # Fallback: inject from Secrets Manager if available and not already set via context
+        if cloudfront_secret:
+            admin_preview_env.setdefault(
+                "CLOUDFRONT_KEY_PAIR_ID",
+                cloudfront_secret.secret_value_from_json("keyPairId").to_string(),
+            )
+            admin_preview_env.setdefault(
+                "CLOUDFRONT_PRIVATE_KEY",
+                cloudfront_secret.secret_value_from_json("privateKey").to_string(),
+            )
 
         admin_preview_fn = _lambda.Function(
             self,
             "AdminPreviewFn",
             runtime=_lambda.Runtime.PYTHON_3_12,
-            handler="admin_preview_url.handler",
+            handler="admin_preview.handler.handler",
             code=_lambda.Code.from_asset(
                 "./lambda",
                 exclude=["**/__pycache__", "*.pyc", ".pytest_cache", "tests"],
@@ -406,7 +432,7 @@ class ApiStack(Stack):
             ("/admin/books/pending", apigw.HttpMethod.GET, list_pending_books_fn),
             ("/admin/books/{bookId}/approve", apigw.HttpMethod.POST, approve_book_fn),
             ("/admin/books/{bookId}/reject", apigw.HttpMethod.POST, reject_book_fn),
-            ("/admin/books/{bookId}/admin-preview", apigw.HttpMethod.GET, admin_preview_fn),
+            ("/admin/books/{bookId}/preview-url", apigw.HttpMethod.GET, admin_preview_fn),
             ("/user/profile", apigw.HttpMethod.PUT, update_user_profile_fn),
             ("/user/profile", apigw.HttpMethod.GET, get_user_profile_fn),
         ]
