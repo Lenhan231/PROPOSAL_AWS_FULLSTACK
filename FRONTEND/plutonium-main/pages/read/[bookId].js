@@ -4,6 +4,7 @@ import Head from "next/head";
 import dynamic from 'next/dynamic';
 import axios from 'axios';
 import { api } from "../../lib/api";
+import { API_ENDPOINTS } from "../../lib/constants";
 import { useAuth } from "../../src/contexts/AuthContext";
 import { fetchAuthSession } from 'aws-amplify/auth';
 
@@ -16,7 +17,8 @@ const ReactReader = dynamic(() => import('react-reader').then(mod => mod.ReactRe
 export default function ReadBookPage() {
   const router = useRouter();
   const { bookId } = router.query;
-  const { user } = useAuth();
+  const normalizedBookId = Array.isArray(bookId) ? bookId[0] : bookId;
+  const { user, loading: authLoading } = useAuth();
   const [contentUrl, setContentUrl] = useState(""); // Changed from pdfUrl to contentUrl
   const [downloadUrl, setDownloadUrl] = useState("");
   const [loading, setLoading] = useState(true);
@@ -30,27 +32,39 @@ export default function ReadBookPage() {
   const [iframeError, setIframeError] = useState(false); // Track iframe load errors
   const iframeRef = useRef(null);
 
+  const hasAdminGroup = (groups) => {
+    if (!groups) return false;
+    if (Array.isArray(groups)) return groups.includes('Admins');
+    if (typeof groups === 'string') {
+      try {
+        const parsed = JSON.parse(groups);
+        if (Array.isArray(parsed)) return parsed.includes('Admins');
+      } catch (_) {
+        // not JSON, fall through
+      }
+      return groups.split(',').map(g => g.trim()).includes('Admins') || groups.includes('Admins');
+    }
+    return false;
+  };
+
   // Check admin status
   useEffect(() => {
     const checkAdmin = async () => {
-      if (!user) {
-        setIsAdmin(false);
-        return;
-      }
-      
+      if (authLoading) return; // Wait until auth finishes
+
       try {
         const session = await fetchAuthSession();
         const accessToken = session.tokens?.accessToken;
         const idToken = session.tokens?.idToken;
-        
+
         const tokenGroups = 
           accessToken?.payload?.['cognito:groups'] ||
           idToken?.payload?.['cognito:groups'];
-        
+
         const adminEmails = ['nhanle221199@gmail.com'];
-        
+
         const isAdminUser = 
-          tokenGroups?.includes('Admins') || 
+          hasAdminGroup(tokenGroups) || 
           adminEmails.includes(user?.attributes?.email || user?.username || '');
         
         setIsAdmin(isAdminUser);
@@ -61,10 +75,10 @@ export default function ReadBookPage() {
     };
 
     checkAdmin();
-  }, [user]);
+  }, [user, authLoading]);
 
   const loadBookData = async () => {
-    if (!bookId || isAdmin === null) {
+    if (!normalizedBookId || isAdmin === null || authLoading) {
       console.log('⏳ Waiting for bookId or admin check...');
       return;
     }
@@ -73,8 +87,11 @@ export default function ReadBookPage() {
       setLoading(true);
       setError(null);
       
-      console.log('📖 Loading book data for:', bookId);
+      console.log('📖 Loading book data for:', normalizedBookId);
       console.log('👤 User is admin:', isAdmin);
+      console.log('🌐 API base URL:', process.env.NEXT_PUBLIC_API_URL || 'fallback/default');
+      console.log('🛣️ Admin preview path:', API_ENDPOINTS.ADMIN_PREVIEW_URL(normalizedBookId));
+      console.log('🛣️ Read URL path:', API_ENDPOINTS.GET_READ_URL(normalizedBookId));
       
       // Try admin preview first if user is admin, fallback to regular read URL
       let result;
@@ -84,7 +101,7 @@ export default function ReadBookPage() {
       if (isAdmin) {
         try {
           console.log('🔑 Attempting admin preview endpoint...');
-          result = await api.getAdminPreviewUrl(bookId, { 
+          result = await api.getAdminPreviewUrl(normalizedBookId, { 
             responseContentDisposition: 'inline' 
           });
           usedAdminEndpoint = true;
@@ -92,14 +109,17 @@ export default function ReadBookPage() {
         } catch (adminErr) {
           console.warn('⚠️ Admin preview endpoint failed:', {
             status: adminErr.response?.status,
-            message: adminErr.response?.data?.message || adminErr.message
+            message: adminErr.response?.data?.message || adminErr.message,
+            url: adminErr.response?.config?.url,
+            baseURL: adminErr.response?.config?.baseURL,
+            params: adminErr.response?.config?.params
           });
           adminEndpointFailed = true;
           
           // Try fallback to regular read URL
           try {
             console.log('🔄 Trying fallback to regular read URL...');
-            result = await api.getReadUrl(bookId, { 
+            result = await api.getReadUrl(normalizedBookId, { 
               responseContentDisposition: 'inline' 
             });
             console.log('✅ Regular read URL succeeded (fallback)');
@@ -113,14 +133,14 @@ export default function ReadBookPage() {
               ? 'admin_endpoint_not_found' 
               : 'admin_preview_failed';
             
-            router.replace(`/read-error?bookId=${bookId}&isAdmin=true&reason=${errorReason}`);
+            router.replace(`/read-error?bookId=${normalizedBookId}&isAdmin=true&reason=${errorReason}`);
             return;
           }
         }
       } else {
         // Regular user - use standard read URL
         console.log('👤 Using regular read URL for non-admin user');
-        result = await api.getReadUrl(bookId, { 
+        result = await api.getReadUrl(normalizedBookId, { 
           responseContentDisposition: 'inline' 
         });
         console.log('✅ Regular read URL succeeded');
@@ -202,7 +222,7 @@ export default function ReadBookPage() {
         ? 'access_denied' 
         : 'unknown_error';
       
-      router.replace(`/read-error?bookId=${bookId}&isAdmin=${isAdmin}&reason=${errorReason}`);
+        router.replace(`/read-error?bookId=${normalizedBookId}&isAdmin=${isAdmin}&reason=${errorReason}`);
     } finally {
       setLoading(false);
     }
@@ -210,7 +230,7 @@ export default function ReadBookPage() {
 
   useEffect(() => {
     loadBookData();
-  }, [bookId, isAdmin]);
+  }, [normalizedBookId, isAdmin]);
 
   const handleDownload = async () => {
     try {
@@ -220,17 +240,17 @@ export default function ReadBookPage() {
       let result;
       if (isAdmin) {
         try {
-          result = await api.getAdminPreviewUrl(bookId, { 
+          result = await api.getAdminPreviewUrl(normalizedBookId, { 
             responseContentDisposition: 'attachment' 
           });
         } catch (adminErr) {
           console.log('Admin download failed, trying regular read URL:', adminErr);
-          result = await api.getReadUrl(bookId, { 
+          result = await api.getReadUrl(normalizedBookId, { 
             responseContentDisposition: 'attachment' 
           });
         }
       } else {
-        result = await api.getReadUrl(bookId, { 
+        result = await api.getReadUrl(normalizedBookId, { 
           responseContentDisposition: 'attachment' 
         });
       }

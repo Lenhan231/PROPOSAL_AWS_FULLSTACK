@@ -9,6 +9,10 @@ import ErrorBoundary from "../components/ErrorBoundary";
 
 // Set up token getter for API client
 if (typeof window !== "undefined") {
+  // Some third-party scripts assume the Chrome extension API exists; stub to avoid ReferenceError in non-Chrome browsers
+  if (typeof window.chrome === "undefined") {
+    window.chrome = {};
+  }
   setTokenGetter(async () => {
     try {
       const session = await fetchAuthSession();

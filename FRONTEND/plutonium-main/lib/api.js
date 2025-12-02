@@ -1,14 +1,22 @@
 import axios from 'axios';
 import { API_ENDPOINTS } from './constants';
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || FALLBACK_API_BASE;
+
 // Create axios instance
 const apiClient = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL,
+  baseURL: API_BASE_URL,
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
   },
 });
+
+if (!process.env.NEXT_PUBLIC_API_URL && typeof window !== 'undefined') {
+  console.warn('[API] NEXT_PUBLIC_API_URL missing, using fallback:', API_BASE_URL);
+} else if (typeof window !== 'undefined') {
+  console.log('[API] Using baseURL:', API_BASE_URL);
+}
 
 // Store for auth token getter (will be set by AuthContext)
 let getAccessToken = null;
@@ -67,6 +75,20 @@ apiClient.interceptors.response.use(
   }
 );
 
+// Normalize response header override params to the hyphenated form the backend expects
+const normalizeResponseParams = (params = {}) => {
+  const next = { ...params };
+  if (params.responseContentDisposition && !params['response-content-disposition']) {
+    next['response-content-disposition'] = params.responseContentDisposition;
+  }
+  if (params.responseContentType && !params['response-content-type']) {
+    next['response-content-type'] = params.responseContentType;
+  }
+  delete next.responseContentDisposition;
+  delete next.responseContentType;
+  return next;
+};
+
 // ============================================
 // API Methods
 // ============================================
@@ -87,9 +109,13 @@ export const api = {
    * Get read URL for a book
    * @param {string} bookId
    * @param {Object} params - Optional query parameters (e.g., { responseContentDisposition: 'inline' })
-   */
+ */
   getReadUrl: async (bookId, params = {}) => {
-    const response = await apiClient.get(API_ENDPOINTS.GET_READ_URL(bookId), { params });
+    const normalized = normalizeResponseParams(params);
+    if (typeof window !== 'undefined') {
+      console.log('[API] GET read-url', API_ENDPOINTS.GET_READ_URL(bookId), 'base:', API_BASE_URL, 'params:', normalized);
+    }
+    const response = await apiClient.get(API_ENDPOINTS.GET_READ_URL(bookId), { params: normalized });
     return response.data;
   },
 
@@ -157,9 +183,13 @@ export const api = {
    * Get preview URL for pending book (Admin only)
    * @param {string} bookId
    * @param {Object} params - Optional query parameters (e.g., { responseContentDisposition: 'inline' })
-   */
+  */
   getAdminPreviewUrl: async (bookId, params = {}) => {
-    const response = await apiClient.get(API_ENDPOINTS.ADMIN_PREVIEW_URL(bookId), { params });
+    const normalized = normalizeResponseParams(params);
+    if (typeof window !== 'undefined') {
+      console.log('[API] GET admin preview', API_ENDPOINTS.ADMIN_PREVIEW_URL(bookId), 'base:', API_BASE_URL, 'params:', normalized);
+    }
+    const response = await apiClient.get(API_ENDPOINTS.ADMIN_PREVIEW_URL(bookId), { params: normalized });
     return response.data;
   },
 
