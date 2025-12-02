@@ -27,6 +27,11 @@ export default function MyUploadsPage() {
       console.log("=== MY UPLOADS API RESPONSE ===");
       console.log("Books count:", result.books?.length || 0);
       
+      // Log first book to see structure
+      if (result.books && result.books.length > 0) {
+        console.log("First book structure:", result.books[0]);
+      }
+      
       // Log rejected books to verify rejectedReason is now saved
       const rejectedBooks = (result.books || []).filter(b => b.status === 'REJECTED');
       if (rejectedBooks.length > 0) {
@@ -192,7 +197,23 @@ function UploadCard({ book, onToast, onDelete }) {
   };
 
   const handleReadBook = () => {
-    router.push(`/read/${book.bookId}`);
+    console.log('Book data being passed:', {
+      bookId: book.bookId,
+      title: book.title,
+      author: book.author,
+      description: book.description,
+      pages: book.pages
+    });
+    
+    router.push({
+      pathname: `/read/${book.bookId}`,
+      query: {
+        title: book.title || '',
+        author: book.author || '',
+        description: book.description || '',
+        pages: book.pages || ''
+      }
+    });
   };
 
   const handleDelete = async () => {
