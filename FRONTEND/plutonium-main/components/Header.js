@@ -122,7 +122,7 @@ export default function Header() {
             </Link>
             {isAdmin && (
               <Link href="/admin/pending" className="text-base md:text-sm text-black transition duration-300 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 font-semibold py-2 md:py-0">
-                ⚙️ Admin
+                Dashboard
               </Link>
             )}
           </div>
