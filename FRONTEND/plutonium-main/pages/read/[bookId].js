@@ -15,22 +15,30 @@ export default function ReadBookPage() {
   const [error, setError] = useState("");
   const [bookData, setBookData] = useState(null);
   const [isDownloading, setIsDownloading] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(null); // null = checking, false = not admin, true = admin
   const [preventNavigation, setPreventNavigation] = useState(false);
   const iframeRef = useRef(null);
 
-  // Prevent navigation when there's an error
+  // Block back navigation when there's an error
   useEffect(() => {
-    if (error && preventNavigation) {
-      const handleBeforeUnload = (e) => {
+    if (error) {
+      const handlePopState = (e) => {
+        if (window.confirm('Bạn có chắc muốn rời khỏi trang này?')) {
+          return true;
+        }
         e.preventDefault();
-        e.returnValue = '';
+        window.history.pushState(null, '', window.location.href);
+        return false;
       };
-      
-      window.addEventListener('beforeunload', handleBeforeUnload);
-      return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+
+      window.history.pushState(null, '', window.location.href);
+      window.addEventListener('popstate', handlePopState);
+
+      return () => {
+        window.removeEventListener('popstate', handlePopState);
+      };
     }
-  }, [error, preventNavigation]);
+  }, [error]);
 
   useEffect(() => {
     const checkAdmin = async () => {
@@ -65,7 +73,7 @@ export default function ReadBookPage() {
   }, [user]);
 
   useEffect(() => {
-    if (bookId) {
+    if (bookId && isAdmin !== null) { // Wait for admin check to complete
       loadBookData();
     }
   }, [bookId, isAdmin]);

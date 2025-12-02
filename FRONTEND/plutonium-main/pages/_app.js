@@ -5,6 +5,7 @@ import { Amplify } from "aws-amplify";
 import awsConfig from "../src/aws-config.js";
 import { fetchAuthSession } from "aws-amplify/auth";
 import { setTokenGetter } from "../lib/api";
+import ErrorBoundary from "../components/ErrorBoundary";
 
 // Set up token getter for API client
 if (typeof window !== "undefined") {
@@ -24,7 +25,9 @@ function MyApp({ Component, pageProps }) {
   return (
     <ThemeProvider attribute="class">
       <AuthProvider>
-        <Component {...pageProps} />
+        <ErrorBoundary>
+          <Component {...pageProps} />
+        </ErrorBoundary>
       </AuthProvider>
     </ThemeProvider>
   );

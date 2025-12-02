@@ -44,7 +44,7 @@ export default function Header() {
           idToken?.payload?.['cognito:groups'];
         
         // Email whitelist as fallback
-        const adminEmails = ['nhanle221199@gmail.com'];
+        const adminEmails = ['alsoan001@gmail.com'];
         
         const isAdminUser = 
           tokenGroups?.includes('Admins') || 
