@@ -7,21 +7,25 @@ export default function ReadBookPage() {
   const router = useRouter();
   const { bookId } = router.query;
   const [pdfUrl, setPdfUrl] = useState("");
+  const [downloadUrl, setDownloadUrl] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [bookTitle, setBookTitle] = useState("Đang tải...");
+  const [bookData, setBookData] = useState(null);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const iframeRef = useRef(null);
 
   useEffect(() => {
     if (bookId) {
-      loadPdfUrl();
+      loadBookData();
     }
   }, [bookId]);
 
-  const loadPdfUrl = async () => {
+  const loadBookData = async () => {
     try {
       setLoading(true);
       setError("");
       
+      // Get read URL for preview
       const result = await api.getReadUrl(bookId, { 
         responseContentDisposition: 'inline' 
       });
@@ -30,12 +34,18 @@ export default function ReadBookPage() {
       
       if (signedUrl) {
         setPdfUrl(signedUrl);
-        setBookTitle(result.title || "Đọc sách");
+        setBookData({
+          title: result.title || "Đọc sách",
+          author: result.author || "Không rõ",
+          description: result.description || "",
+          uploadDate: result.uploadDate || "",
+          pages: result.pages || "N/A"
+        });
       } else {
         setError("Không thể lấy URL đọc sách");
       }
     } catch (err) {
-      console.error("Failed to load PDF:", err);
+      console.error("Failed to load book:", err);
       const errorMsg = err.response?.data?.message || err.response?.data?.error || err.message;
       
       if (err.response?.status === 404) {
@@ -50,15 +60,45 @@ export default function ReadBookPage() {
     }
   };
 
+  const handleDownload = async () => {
+    try {
+      setIsDownloading(true);
+      
+      // Get download URL
+      const result = await api.getReadUrl(bookId, { 
+        responseContentDisposition: 'attachment' 
+      });
+      
+      const downloadUrl = result.url || result.readUrl;
+      
+      if (downloadUrl) {
+        // Create temporary link and trigger download
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = `${bookData?.title || 'book'}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } else {
+        alert("Không thể tải xuống sách");
+      }
+    } catch (err) {
+      console.error("Failed to download:", err);
+      alert(err.response?.data?.message || "Không thể tải xuống sách");
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
       <Head>
-        <title>{bookTitle} - Thư Viện Online</title>
+        <title>{bookData?.title || "Đang tải..."} - Thư Viện Online</title>
       </Head>
 
-      {/* Simple Header */}
-      <header className="bg-white shadow-sm dark:bg-gray-800">
-        <div className="flex items-center justify-between px-4 py-3">
+      {/* Header */}
+      <header className="bg-white shadow-sm dark:bg-gray-800 sticky top-0 z-10">
+        <div className="flex items-center justify-between px-4 py-3 max-w-7xl mx-auto">
           <button
             onClick={() => router.back()}
             className="flex items-center gap-2 px-3 py-1.5 text-gray-700 transition-colors rounded-lg hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
@@ -69,16 +109,39 @@ export default function ReadBookPage() {
             Quay lại
           </button>
           <h1 className="text-lg font-semibold text-gray-900 dark:text-white truncate max-w-md">
-            {bookTitle}
+            {bookData?.title || "Đang tải..."}
           </h1>
-          <div className="w-24"></div>
+          {!loading && !error && (
+            <button
+              onClick={handleDownload}
+              disabled={isDownloading}
+              className="flex items-center gap-2 px-4 py-1.5 text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isDownloading ? (
+                <>
+                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Đang tải...
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  Tải xuống
+                </>
+              )}
+            </button>
+          )}
         </div>
       </header>
 
       {/* Content */}
-      <main className="h-[calc(100vh-64px)]">
+      <main className="max-w-7xl mx-auto px-4 py-6">
         {loading && (
-          <div className="flex items-center justify-center h-full">
+          <div className="flex items-center justify-center min-h-[500px]">
             <div className="text-center">
               <div className="inline-block w-12 h-12 mb-4 border-4 border-blue-600 rounded-full border-t-transparent animate-spin"></div>
               <p className="text-gray-600 dark:text-gray-400">Đang tải sách...</p>
@@ -87,7 +150,7 @@ export default function ReadBookPage() {
         )}
 
         {error && (
-          <div className="flex items-center justify-center h-full">
+          <div className="flex items-center justify-center min-h-[500px]">
             <div className="max-w-md p-6 text-center">
               <div className="mb-4 text-6xl">😔</div>
               <h2 className="mb-2 text-xl font-semibold text-gray-900 dark:text-white">
@@ -105,18 +168,105 @@ export default function ReadBookPage() {
         )}
 
         {!loading && !error && pdfUrl && (
-          <object
-            data={pdfUrl}
-            type="application/pdf"
-            className="w-full h-full border-0"
-            title={bookTitle}
-          >
-            <iframe
-              src={pdfUrl}
-              className="w-full h-full border-0"
-              title={bookTitle}
-            />
-          </object>
+          <div className="space-y-6">
+            {/* Book Info Card */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+              <div className="flex flex-col md:flex-row gap-6">
+                <div className="flex-shrink-0">
+                  <div className="w-32 h-44 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center text-white text-5xl">
+                    📚
+                  </div>
+                </div>
+                <div className="flex-grow">
+                  <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                    {bookData?.title}
+                  </h1>
+                  <p className="text-gray-600 dark:text-gray-400 mb-1">
+                    <span className="font-medium">Tác giả:</span> {bookData?.author}
+                  </p>
+                  {bookData?.description && (
+                    <p className="text-gray-600 dark:text-gray-400 mb-3">
+                      {bookData.description}
+                    </p>
+                  )}
+                  <div className="flex flex-wrap gap-4 text-sm text-gray-500 dark:text-gray-500">
+                    {bookData?.uploadDate && (
+                      <span>📅 {new Date(bookData.uploadDate).toLocaleDateString('vi-VN')}</span>
+                    )}
+                    {bookData?.pages && (
+                      <span>📄 {bookData.pages} trang</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Preview Notice */}
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <svg className="w-6 h-6 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div>
+                  <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-1">
+                    Xem trước sách
+                  </h3>
+                  <p className="text-sm text-blue-800 dark:text-blue-200">
+                    Bạn đang xem bản xem trước của cuốn sách này. Nhấn nút "Tải xuống" ở góc trên để tải toàn bộ sách về máy và đọc offline.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* PDF Preview */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
+              <div className="aspect-[3/4] md:aspect-[4/3] lg:h-[800px]">
+                <object
+                  data={pdfUrl}
+                  type="application/pdf"
+                  className="w-full h-full"
+                  title={bookData?.title}
+                >
+                  <iframe
+                    ref={iframeRef}
+                    src={pdfUrl}
+                    className="w-full h-full border-0"
+                    title={bookData?.title}
+                  />
+                </object>
+              </div>
+            </div>
+
+            {/* Download CTA */}
+            <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg shadow-lg p-8 text-center text-white">
+              <h2 className="text-2xl font-bold mb-2">Thích cuốn sách này?</h2>
+              <p className="mb-6 text-blue-100">
+                Tải xuống để đọc toàn bộ nội dung và lưu trữ trên thiết bị của bạn
+              </p>
+              <button
+                onClick={handleDownload}
+                disabled={isDownloading}
+                className="inline-flex items-center gap-2 px-8 py-3 bg-white text-blue-600 rounded-lg hover:bg-gray-100 transition-colors font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isDownloading ? (
+                  <>
+                    <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Đang tải xuống...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    Tải xuống sách
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
         )}
       </main>
     </div>

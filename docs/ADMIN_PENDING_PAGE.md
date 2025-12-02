@@ -629,19 +629,65 @@ Admin views in pending list
 - [ ] Dark mode displays correctly
 - [ ] Responsive layout on mobile devices
 
+## Book Preview Feature
+
+### Overview
+Administrators can preview books before approving or rejecting them, providing the same preview experience as regular users.
+
+### Implementation
+**Function:** `handlePreview()`
+```javascript
+const handlePreview = () => {
+  // Try to open in new tab, if blocked, navigate in current window
+  const newWindow = window.open(`/read/${book.bookId}`, '_blank');
+  
+  // If popup was blocked, navigate in current window
+  if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
+    router.push(`/read/${book.bookId}`);
+  }
+};
+```
+
+### Features
+- **New Tab**: Opens preview in new browser tab (preferred)
+- **Fallback**: If popup blocked, navigates in current window
+- **Full Preview**: Shows complete book preview page with:
+  - Book information card
+  - PDF viewer
+  - Download buttons
+  - Back navigation
+- **Admin Return**: Admins can use browser back button or close tab to return to pending page
+
+### User Flow
+1. Admin clicks "👁️ Xem trước" button on book card
+2. System attempts to open `/read/{bookId}` in new tab
+3. If popup blocked by browser, navigates in same window
+4. Admin views book preview (same as regular users)
+5. Admin can download book to verify content
+6. Admin returns via back button or closes tab
+7. Admin approves or rejects based on preview
+
+### Benefits
+- **Quality Control**: Review actual content before approval
+- **Verify Format**: Ensure PDF is readable and complete
+- **Check Content**: Verify book matches metadata
+- **User Experience**: Same interface as end users
+
+---
+
 ## Future Enhancements
 
 ### Potential Features
 1. **Bulk Actions** - Approve/reject multiple books at once
-2. **Book Preview** - View PDF before approval
-3. **Edit Metadata** - Correct title/author before approval
-4. **Filtering** - Filter by date, uploader, category
-5. **Sorting** - Sort by upload date, title, author
-6. **Search** - Search within pending books
-7. **History Log** - View approval/rejection history
-8. **Notifications** - Email notifications for new uploads
-9. **Categories** - Assign categories during approval
-10. **Priority Queue** - Mark urgent reviews
+2. **Edit Metadata** - Correct title/author before approval
+3. **Filtering** - Filter by date, uploader, category
+4. **Sorting** - Sort by upload date, title, author
+5. **Search** - Search within pending books
+6. **History Log** - View approval/rejection history
+7. **Notifications** - Email notifications for new uploads
+8. **Categories** - Assign categories during approval
+9. **Priority Queue** - Mark urgent reviews
+10. **Preview Notes** - Add notes during preview for approval decision
 
 ### Performance
 1. Pagination for large book lists
