@@ -12,6 +12,7 @@ export default function ReadBookPage() {
   const [pdfUrl, setPdfUrl] = useState("");
   const [downloadUrl, setDownloadUrl] = useState("");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [bookData, setBookData] = useState(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isAdmin, setIsAdmin] = useState(null); // null = checking, false = not admin, true = admin
@@ -300,20 +301,14 @@ export default function ReadBookPage() {
 
             {/* PDF Preview */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
-              <div className="aspect-[3/4] md:aspect-[4/3] lg:h-[800px]">
-                <object
-                  data={pdfUrl}
-                  type="application/pdf"
-                  className="w-full h-full"
+              <div className="w-full" style={{ height: '800px' }}>
+                <iframe
+                  ref={iframeRef}
+                  src={pdfUrl}
+                  className="w-full h-full border-0"
                   title={bookData?.title}
-                >
-                  <iframe
-                    ref={iframeRef}
-                    src={pdfUrl}
-                    className="w-full h-full border-0"
-                    title={bookData?.title}
-                  />
-                </object>
+                  allow="fullscreen"
+                />
               </div>
             </div>
 
