@@ -1,21 +1,32 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/router";
 import Head from "next/head";
+import dynamic from 'next/dynamic';
+import axios from 'axios';
 import { api } from "../../lib/api";
 import { useAuth } from "../../src/contexts/AuthContext";
 import { fetchAuthSession } from 'aws-amplify/auth';
+
+// Dynamically import ReactReader for EPUB support (only loads when needed)
+const ReactReader = dynamic(() => import('react-reader').then(mod => mod.ReactReader), {
+  ssr: false,
+  loading: () => <div className="flex items-center justify-center h-full"><div className="text-gray-600">Loading EPUB reader...</div></div>
+});
 
 export default function ReadBookPage() {
   const router = useRouter();
   const { bookId } = router.query;
   const { user } = useAuth();
-  const [pdfUrl, setPdfUrl] = useState("");
+  const [contentUrl, setContentUrl] = useState(""); // Changed from pdfUrl to contentUrl
   const [downloadUrl, setDownloadUrl] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [bookData, setBookData] = useState(null);
+  const [fileType, setFileType] = useState(null); // 'pdf' or 'epub'
   const [isDownloading, setIsDownloading] = useState(false);
   const [isAdmin, setIsAdmin] = useState(null); // null = checking, false = not admin, true = admin
+  const [epubLocation, setEpubLocation] = useState(null); // For EPUB reading position
+  const [epubBlob, setEpubBlob] = useState(null); // For EPUB blob data
   const iframeRef = useRef(null);
 
   // Check admin status
@@ -51,15 +62,15 @@ export default function ReadBookPage() {
     checkAdmin();
   }, [user]);
 
-  useEffect(() => {
-    if (bookId && isAdmin !== null) { // Wait for admin check to complete
-      loadBookData();
-    }
-  }, [bookId, isAdmin]);
-
   const loadBookData = async () => {
+    if (!bookId || isAdmin === null) {
+      console.log('⏳ Waiting for bookId or admin check...');
+      return;
+    }
+
     try {
       setLoading(true);
+      setError(null);
       
       console.log('📖 Loading book data for:', bookId);
       console.log('👤 User is admin:', isAdmin);
@@ -116,8 +127,52 @@ export default function ReadBookPage() {
       
       const signedUrl = result.url || result.readUrl;
       
+      console.log('📝 Received URL:', signedUrl ? 'Yes' : 'No');
+      console.log('🌐 Browser:', navigator.userAgent);
+      console.log('🔗 URL starts with:', signedUrl ? signedUrl.substring(0, 50) + '...' : 'N/A');
+      
       if (signedUrl) {
-        setPdfUrl(signedUrl);
+        // Detect file type from URL, filename, or metadata
+        const fileName = result.title || result.fileName || '';
+        const urlLower = signedUrl.toLowerCase();
+        const fileNameLower = fileName.toLowerCase();
+        
+        let detectedType = 'pdf'; // default
+        if (urlLower.includes('.epub') || fileNameLower.includes('.epub')) {
+          detectedType = 'epub';
+        } else if (urlLower.includes('.pdf') || fileNameLower.includes('.pdf')) {
+          detectedType = 'pdf';
+        }
+        
+        console.log('📚 Detected file type:', detectedType);
+        
+        setFileType(detectedType);
+        setContentUrl(signedUrl);
+        
+        // For EPUB files, try to fetch as blob for better compatibility
+        // If CORS blocks it, ReactReader will try directly (may not work with S3)
+        if (detectedType === 'epub') {
+          console.log('📖 Attempting to fetch EPUB as blob...');
+          try {
+            const response = await axios.get(signedUrl, {
+              responseType: 'blob',
+              withCredentials: false,
+              timeout: 10000,
+              headers: {
+                'Accept': 'application/epub+zip, application/octet-stream'
+              }
+            });
+            setEpubBlob(response.data);
+            console.log('✅ EPUB blob loaded successfully');
+          } catch (epubFetchError) {
+            console.warn('⚠️ Failed to fetch EPUB blob (likely CORS issue):', epubFetchError.message);
+            console.log('💡 EPUB will try to load directly from URL (may not work)');
+            // Don't set error here - let ReactReader try with the URL directly
+            // If that fails, user can still download
+            setEpubBlob('direct'); // Signal to use URL directly
+          }
+        }
+        
         setBookData({
           title: result.title || "Đọc sách",
           author: result.author || "Không rõ",
@@ -125,12 +180,19 @@ export default function ReadBookPage() {
           uploadDate: result.uploadDate || "",
           pages: result.pages || "N/A"
         });
+        console.log('✅ Book data set successfully');
+        
+        // Add direct link option for browsers that don't support iframe
+        console.log('📖 If viewer doesn\'t load, open this URL directly:', signedUrl);
       } else {
+        console.error('❌ No URL received from API');
+        setError('No URL received from server');
         // No URL received - redirect to error page
         router.replace(`/read-error?bookId=${bookId}&isAdmin=${isAdmin}&reason=no_url`);
       }
     } catch (err) {
       console.error("❌ Failed to load book:", err);
+      setError(err.message || 'Failed to load book');
       
       // Redirect to error page with context
       const errorReason = err.response?.status === 404 
@@ -144,6 +206,10 @@ export default function ReadBookPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadBookData();
+  }, [bookId, isAdmin]);
 
   const handleDownload = async () => {
     try {
@@ -248,14 +314,14 @@ export default function ReadBookPage() {
           </div>
         )}
 
-        {!loading && pdfUrl && (
+        {!loading && contentUrl && (
           <div className="space-y-6">
             {/* Book Info Card */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
               <div className="flex flex-col md:flex-row gap-6">
                 <div className="flex-shrink-0">
                   <div className="w-32 h-44 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center text-white text-5xl">
-                    📚
+                    {fileType === 'epub' ? '📖' : '📚'}
                   </div>
                 </div>
                 <div className="flex-grow">
@@ -292,23 +358,109 @@ export default function ReadBookPage() {
                   <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-1">
                     Xem trước sách
                   </h3>
-                  <p className="text-sm text-blue-800 dark:text-blue-200">
+                  <p className="text-sm text-blue-800 dark:text-blue-200 mb-2">
                     Bạn đang xem bản xem trước của cuốn sách này. Nhấn nút "Tải xuống" ở góc trên để tải toàn bộ sách về máy và đọc offline.
+                  </p>
+                  <p className="text-xs text-blue-700 dark:text-blue-300 italic">
+                    ⚠️ Lưu ý: Nếu trang tự động tải xuống sách thay vì hiển thị, vui lòng đóng file tải về và xem PDF trong khung hiển thị bên dưới. Đây là vấn đề tạm thời sẽ được khắc phục sớm.
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* PDF Preview */}
+            {/* Book Viewer - PDF or EPUB */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
               <div className="w-full" style={{ height: '800px' }}>
-                <iframe
-                  ref={iframeRef}
-                  src={pdfUrl}
-                  className="w-full h-full border-0"
-                  title={bookData?.title}
-                  allow="fullscreen"
-                />
+                {fileType === 'pdf' && (
+                  <iframe
+                    ref={iframeRef}
+                    src={contentUrl}
+                    className="w-full h-full border-0"
+                    title={bookData?.title}
+                    allow="fullscreen"
+                    sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+                    onError={(e) => {
+                      console.error('❌ Iframe failed to load:', e);
+                      console.log('🌐 Browser:', navigator.userAgent);
+                      console.log('📋 PDF URL:', contentUrl);
+                    }}
+                    onLoad={() => {
+                      console.log('✅ Iframe loaded successfully');
+                    }}
+                  />
+                )}
+                
+                {fileType === 'epub' && (
+                  <div className="w-full h-full">
+                    {epubBlob && epubBlob !== 'direct' ? (
+                      <ReactReader
+                        url={epubBlob}
+                        location={epubLocation}
+                        locationChanged={(loc) => {
+                          console.log('📍 EPUB location changed:', loc);
+                          setEpubLocation(loc);
+                        }}
+                        title={bookData?.title}
+                        showToc={true}
+                        epubOptions={{
+                          flow: "paginated",
+                          manager: "default",
+                        }}
+                        readerStyles={{
+                          ...{
+                            arrow: {
+                              color: '#3b82f6'
+                            },
+                            arrowHover: {
+                              color: '#2563eb'
+                            }
+                          }
+                        }}
+                      />
+                    ) : epubBlob === 'direct' ? (
+                      <div className="flex flex-col items-center justify-center h-full p-8">
+                        <div className="text-center max-w-md">
+                          <div className="text-6xl mb-4">📖</div>
+                          <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+                            EPUB Không Thể Hiển Thị Trực Tuyến
+                          </h3>
+                          <p className="text-gray-600 dark:text-gray-400 mb-6">
+                            Do hạn chế bảo mật của S3, file EPUB không thể hiển thị trực tiếp trong trình duyệt. 
+                            Vui lòng tải xuống để đọc trên thiết bị của bạn.
+                          </p>
+                          <button
+                            onClick={handleDownload}
+                            className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                            Tải Xuống EPUB
+                          </button>
+                          <p className="text-xs text-gray-500 dark:text-gray-500 mt-4">
+                            Bạn có thể đọc EPUB bằng: Apple Books, Google Play Books, Calibre, hoặc các ứng dụng đọc EPUB khác
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center h-full">
+                        <div className="text-center">
+                          <div className="inline-block w-12 h-12 mb-4 border-4 border-blue-600 rounded-full border-t-transparent animate-spin"></div>
+                          <p className="text-gray-600 dark:text-gray-400">Đang tải EPUB...</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="p-4 bg-gray-50 dark:bg-gray-700 text-sm text-gray-600 dark:text-gray-400">
+                <p className="mb-2">💡 <strong>Lưu ý:</strong> {fileType === 'pdf' ? 'Nếu PDF không hiển thị:' : 'Nếu EPUB không hiển thị:'}</p>
+                <ul className="list-disc list-inside space-y-1 ml-2">
+                  <li>Thử trình duyệt khác (Chrome, Edge, Firefox)</li>
+                  <li>Tắt ad blocker hoặc privacy extensions</li>
+                  <li>Cho phép cookies của trang web này</li>
+                  <li>Nhấn "Tải xuống" để xem offline</li>
+                </ul>
               </div>
             </div>
 

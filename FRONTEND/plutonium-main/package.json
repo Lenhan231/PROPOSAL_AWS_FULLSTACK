@@ -12,6 +12,7 @@
     "@tanstack/react-query": "^5.90.10",
     "aws-amplify": "^6.15.8",
     "axios": "^1.13.2",
+    "epubjs": "^0.3.93",
     "framer-motion": "^12.23.24",
     "glob-parent": "^5.1.2",
     "lucide-react": "^0.554.0",
@@ -20,6 +21,7 @@
     "next-themes": "^0.2.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-reader": "^2.0.15",
     "zustand": "^5.0.8"
   },
   "devDependencies": {

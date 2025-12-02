@@ -318,10 +318,16 @@ function BookListItem({ book, index, onError }) {
           {/* Book spine effect */}
           <div className="absolute inset-y-0 left-0 w-1 bg-black/20"></div>
           
-          {/* Book title on cover */}
+          {/* Book title on cover - dynamic font size */}
           <div className="absolute inset-0 flex flex-col items-center justify-center p-2 text-center">
-            <span className="text-white text-xs font-bold leading-tight line-clamp-3 drop-shadow-md">
-              {book.title?.split(" ").slice(0, 3).join(" ")}
+            <span 
+              className="text-white font-bold leading-tight drop-shadow-md w-full"
+              style={{
+                fontSize: book.title?.length > 50 ? '0.5rem' : book.title?.length > 30 ? '0.6rem' : '0.75rem',
+                lineHeight: '1.2'
+              }}
+            >
+              {book.title}
             </span>
           </div>
           
@@ -418,16 +424,35 @@ function BookGridCard({ book, index, onError }) {
     router.push(`/read/${book.bookId}`);
   };
 
+  const getFileIcon = () => {
+    const fileName = book.fileName || "";
+    if (fileName.endsWith(".epub")) {
+      return "📱";
+    }
+    return "📄";
+  };
+
   return (
     <div className="group bg-white border border-gray-200 rounded-xl dark:bg-gray-800 dark:border-gray-700 hover:shadow-xl hover:border-blue-300 dark:hover:border-blue-600 transition-all duration-200 overflow-hidden">
       {/* Book Cover */}
-      <div className={`relative h-40 bg-gradient-to-br ${gradient}`}>
+      <div className={`relative h-48 bg-gradient-to-br ${gradient}`}>
         <div className="absolute inset-0 flex items-center justify-center p-4">
-          <span className="text-white text-lg font-bold text-center leading-tight drop-shadow-lg line-clamp-3">
+          <span 
+            className="text-white font-bold text-center leading-tight drop-shadow-lg w-full px-2"
+            style={{
+              fontSize: book.title?.length > 50 ? '0.875rem' : book.title?.length > 30 ? '1rem' : '1.125rem',
+              lineHeight: '1.3'
+            }}
+          >
             {book.title}
           </span>
         </div>
         <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent"></div>
+        
+        {/* File type badge */}
+        <div className="absolute top-3 left-3 text-2xl drop-shadow-md">
+          {getFileIcon()}
+        </div>
         
         {/* Status Badge */}
         <span className="absolute top-3 right-3 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-white/90 text-green-700 shadow-sm">
@@ -446,6 +471,21 @@ function BookGridCard({ book, index, onError }) {
         <p className="mt-2 text-sm text-gray-500 dark:text-gray-500 line-clamp-2">
           {book.description || "Chưa có mô tả"}
         </p>
+
+        {/* Meta Info */}
+        <div className="flex items-center gap-3 mt-3 text-xs text-gray-500 dark:text-gray-500">
+          {book.uploaderEmail && (
+            <span className="flex items-center gap-1">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              </svg>
+              {book.uploaderEmail.split("@")[0]}
+            </span>
+          )}
+          {book.fileSize && (
+            <span>{(book.fileSize / 1024 / 1024).toFixed(1)} MB</span>
+          )}
+        </div>
 
         <button
           onClick={handleRead}

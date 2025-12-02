@@ -624,3 +624,30 @@ body::-webkit-scrollbar-thumb {
   animation: slide-up 0.3s ease-out;
 }
 
+/* ============================================ */
+/* EPUB Reader Styles */
+/* ============================================ */
+
+/* Style the EPUB reader container */
+.epub-container {
+  height: 100%;
+  width: 100%;
+}
+
+/* Style EPUB navigation arrows */
+.epub-container button {
+  background-color: rgba(59, 130, 246, 0.1);
+  border-radius: 0.5rem;
+  transition: all 0.2s;
+}
+
+.epub-container button:hover {
+  background-color: rgba(59, 130, 246, 0.2);
+}
+
+/* Dark mode support for EPUB reader */
+@media (prefers-color-scheme: dark) {
+  .epub-container {
+    background-color: #1f2937;
+  }
+}

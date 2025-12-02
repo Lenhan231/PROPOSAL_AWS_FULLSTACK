@@ -10,11 +10,25 @@ export default function Header() {
   const [mounted, setMounted] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const { theme, setTheme } = useTheme();
-  const { user, displayName, signOutUser } = useAuth();
+  const { user, signOutUser } = useAuth();
   const router = useRouter();
 
   // When mounted on client, now we can show the UI
   useEffect(() => setMounted(true), []);
+
+  // Get display name from user attributes
+  const getDisplayName = () => {
+    if (!user) return 'User';
+    
+    // Priority: preferred_username > name > email prefix > username
+    return (
+      user.attributes?.preferred_username ||
+      user.attributes?.name ||
+      user.attributes?.email?.split('@')[0] ||
+      user.username ||
+      'User'
+    );
+  };
 
   // Check if user is admin - use fetchAuthSession for Amplify v6
   const [isAdmin, setIsAdmin] = useState(false);
@@ -161,7 +175,7 @@ export default function Header() {
           
           {/* Auth Section */}
           {user ? (
-            // User is logged in - show email and logout
+            // User is logged in - show username and logout
             <div className="relative mt-3 md:mt-0">
               <button
                 onClick={() => setShowUserMenu(!showUserMenu)}
@@ -169,7 +183,7 @@ export default function Header() {
               >
                 <span className="text-base md:text-sm">👤</span>
                 <span className="text-base md:text-sm max-w-[150px] truncate">
-                  {user.attributes?.name || user.attributes?.email || user.username || 'User'}
+                  {getDisplayName()}
                 </span>
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -182,7 +196,7 @@ export default function Header() {
                   <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
                     <p className="text-sm text-gray-500 dark:text-gray-400">Đăng nhập với</p>
                     <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                      {user.attributes?.name || user.attributes?.email || user.username || 'User'}
+                      {getDisplayName()}
                     </p>
                   </div>
                   <Link
