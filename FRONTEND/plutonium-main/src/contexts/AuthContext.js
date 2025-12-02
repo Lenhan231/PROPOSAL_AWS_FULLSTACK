@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { Amplify } from 'aws-amplify';
 import {
   signUp,
@@ -30,6 +30,8 @@ export const AuthProvider = ({ children }) => {
   const [displayName, setDisplayName] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const initRef = useRef(false);
+  const checkSeq = useRef(0);
 
   // Helpers to persist display name locally (avoid rollback to email on refresh)
   const persistDisplayName = (name) => {
@@ -48,11 +50,14 @@ export const AuthProvider = ({ children }) => {
 
   // Kiểm tra user hiện tại khi load app
   useEffect(() => {
+    if (initRef.current) return;
+    initRef.current = true;
     checkUser();
   }, []);
 
   // Kiểm tra user đã đăng nhập chưa
   const checkUser = async () => {
+    const seq = ++checkSeq.current;
     try {
       const cachedName = displayName || getCachedDisplayName();
       const currentUser = await getCurrentUser();
@@ -69,30 +74,40 @@ export const AuthProvider = ({ children }) => {
       let profileData = null;
       try {
         profileData = await fetchUserProfile();
-        if (profileData?.user_name) {
-          attributes = { ...attributes, name: profileData.user_name };
+        const profileName =
+          profileData?.user_name ||
+          profileData?.profile?.user_name ||
+          profileData?.profile?.name;
+        if (profileName) {
+          attributes = { ...attributes, name: profileName };
         }
       } catch (profileErr) {
         console.warn('Unable to fetch profile from API:', profileErr);
       }
 
-      setProfile(profileData);
+      // Drop stale responses if a newer checkUser started
+      if (seq !== checkSeq.current) return;
+
+      const normalizedProfile = profileData?.profile || profileData || null;
+      setProfile(normalizedProfile);
 
       // Prefer DynamoDB profile name, then Cognito name, then keep existing displayName before falling back
       const nextDisplayName =
-        profileData?.user_name ||
+        normalizedProfile?.user_name ||
         attributes?.name ||
         cachedName ||
         attributes?.email ||
         currentUser?.username;
-      if (profileData?.user_name || attributes?.name || cachedName) {
-        persistDisplayName(profileData?.user_name || attributes?.name || cachedName);
+      if (normalizedProfile?.user_name || attributes?.name || cachedName) {
+        persistDisplayName(normalizedProfile?.user_name || attributes?.name || cachedName);
       }
-      setUser({ ...currentUser, attributes, profile: profileData, displayName: nextDisplayName });
+      setUser({ ...currentUser, attributes, profile: normalizedProfile, displayName: nextDisplayName });
     } catch (err) {
       setUser(null);
     } finally {
-      setLoading(false);
+      if (seq === checkSeq.current) {
+        setLoading(false);
+      }
     }
   };
 
@@ -339,10 +354,18 @@ export const AuthProvider = ({ children }) => {
       throw new Error(message || `Lỗi ${res.status}`);
     }
     const profileData = await res.json();
-    if (profileData?.user_name) {
-      persistDisplayName(profileData.user_name);
+    const normalizedProfile = profileData?.profile || profileData || {};
+    const nameFromProfile =
+      normalizedProfile.user_name ||
+      normalizedProfile.name;
+    // Debug helper: see what backend returns to explain rollback cases
+    if (!nameFromProfile) {
+      console.warn('Profile API returned no user_name; using fallback (email/username)', profileData);
     }
-    return profileData;
+    if (nameFromProfile) {
+      persistDisplayName(nameFromProfile);
+    }
+    return normalizedProfile;
   };
 
   // Lấy token
@@ -370,7 +393,7 @@ export const AuthProvider = ({ children }) => {
   const value = {
     user,
     profile,
-    displayName: displayName || user?.displayName || profile?.user_name || user?.attributes?.name || user?.attributes?.email || user?.username,
+    displayName: displayName || user?.displayName || profile?.user_name || profile?.name || user?.attributes?.name || user?.attributes?.email || user?.username,
     loading,
     error,
     signUpUser,
