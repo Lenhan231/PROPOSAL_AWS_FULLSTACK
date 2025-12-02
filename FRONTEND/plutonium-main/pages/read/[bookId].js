@@ -27,6 +27,7 @@ export default function ReadBookPage() {
   const [isAdmin, setIsAdmin] = useState(null); // null = checking, false = not admin, true = admin
   const [epubLocation, setEpubLocation] = useState(null); // For EPUB reading position
   const [epubBlob, setEpubBlob] = useState(null); // For EPUB blob data
+  const [iframeError, setIframeError] = useState(false); // Track iframe load errors
   const iframeRef = useRef(null);
 
   // Check admin status
@@ -277,28 +278,44 @@ export default function ReadBookPage() {
             {bookData?.title || "Đang tải..."}
           </h1>
           {!loading && !error && (
-            <button
-              onClick={handleDownload}
-              disabled={isDownloading}
-              className="flex items-center gap-2 px-4 py-1.5 text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isDownloading ? (
-                <>
-                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Đang tải...
-                </>
-              ) : (
-                <>
+            <div className="flex gap-2">
+              {fileType === 'pdf' && (
+                <a
+                  href={contentUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-3 py-1.5 text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors dark:bg-blue-900/20 dark:text-blue-400 dark:hover:bg-blue-900/30"
+                  title="Mở PDF trong tab mới"
+                >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                   </svg>
-                  Tải xuống
-                </>
+                  <span className="hidden sm:inline">Tab mới</span>
+                </a>
               )}
-            </button>
+              <button
+                onClick={handleDownload}
+                disabled={isDownloading}
+                className="flex items-center gap-2 px-4 py-1.5 text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isDownloading ? (
+                  <>
+                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span className="hidden sm:inline">Đang tải...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    <span className="hidden sm:inline">Tải xuống</span>
+                  </>
+                )}
+              </button>
+            </div>
           )}
         </div>
       </header>
@@ -372,22 +389,75 @@ export default function ReadBookPage() {
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
               <div className="w-full" style={{ height: '800px' }}>
                 {fileType === 'pdf' && (
-                  <iframe
-                    ref={iframeRef}
-                    src={contentUrl}
-                    className="w-full h-full border-0"
-                    title={bookData?.title}
-                    allow="fullscreen"
-                    sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
-                    onError={(e) => {
-                      console.error('❌ Iframe failed to load:', e);
-                      console.log('🌐 Browser:', navigator.userAgent);
-                      console.log('📋 PDF URL:', contentUrl);
-                    }}
-                    onLoad={() => {
-                      console.log('✅ Iframe loaded successfully');
-                    }}
-                  />
+                  <>
+                    {!iframeError ? (
+                      <iframe
+                        ref={iframeRef}
+                        src={contentUrl}
+                        className="w-full h-full border-0"
+                        title={bookData?.title}
+                        allow="fullscreen"
+                        sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+                        onError={(e) => {
+                          console.error('❌ Iframe failed to load:', e);
+                          console.log('🌐 Browser:', navigator.userAgent);
+                          console.log('📋 PDF URL:', contentUrl);
+                          setIframeError(true);
+                        }}
+                        onLoad={(e) => {
+                          console.log('✅ Iframe loaded successfully');
+                          // Check if iframe actually has content
+                          try {
+                            const iframeDoc = e.target.contentDocument || e.target.contentWindow?.document;
+                            if (!iframeDoc || iframeDoc.body.innerHTML.trim() === '') {
+                              console.warn('⚠️ Iframe loaded but appears empty');
+                              setIframeError(true);
+                            }
+                          } catch (err) {
+                            // Cross-origin restrictions prevent checking - assume it's okay
+                            console.log('ℹ️ Cannot check iframe content (cross-origin)');
+                          }
+                        }}
+                      />
+                    ) : (
+                      <div className="flex flex-col items-center justify-center h-full p-8 bg-gray-50 dark:bg-gray-900">
+                        <div className="text-center max-w-md">
+                          <div className="text-6xl mb-4">🚫</div>
+                          <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+                            Không thể hiển thị PDF
+                          </h3>
+                          <p className="text-gray-600 dark:text-gray-400 mb-6">
+                            Trình duyệt đang chặn hiển thị PDF. Vui lòng mở PDF trong tab mới hoặc tải xuống.
+                          </p>
+                          <div className="flex flex-col gap-3">
+                            <a
+                              href={contentUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                            >
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                              </svg>
+                              Mở trong Tab Mới
+                            </a>
+                            <button
+                              onClick={handleDownload}
+                              className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                            >
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                              </svg>
+                              Tải Xuống PDF
+                            </button>
+                          </div>
+                          <p className="text-xs text-gray-500 dark:text-gray-500 mt-4">
+                            Lỗi này thường xảy ra do cài đặt bảo mật của trình duyệt
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
                 
                 {fileType === 'epub' && (
