@@ -11,7 +11,6 @@ import {
   getCurrentUser,
   fetchAuthSession,
   updatePassword,
-  fetchUserAttributes,
   confirmSignIn,
   updateUserAttribute,
   confirmUserAttribute,
@@ -27,8 +26,25 @@ export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
+  const [profile, setProfile] = useState(null);
+  const [displayName, setDisplayName] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Helpers to persist display name locally (avoid rollback to email on refresh)
+  const persistDisplayName = (name) => {
+    const value = name || '';
+    setDisplayName(value || null);
+    if (typeof window !== 'undefined') {
+      if (value) localStorage.setItem('displayName', value);
+      else localStorage.removeItem('displayName');
+    }
+  };
+
+  const getCachedDisplayName = () => {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem('displayName') || null;
+  };
 
   // Kiểm tra user hiện tại khi load app
   useEffect(() => {
@@ -38,9 +54,41 @@ export const AuthProvider = ({ children }) => {
   // Kiểm tra user đã đăng nhập chưa
   const checkUser = async () => {
     try {
+      const cachedName = displayName || getCachedDisplayName();
       const currentUser = await getCurrentUser();
-      const attributes = await fetchUserAttributes();
-      setUser({ ...currentUser, attributes });
+      // Pull minimal attributes from token to avoid extra Cognito calls
+      const session = await fetchAuthSession().catch(() => null);
+      const idPayload = session?.tokens?.idToken?.payload || {};
+      const accessPayload = session?.tokens?.accessToken?.payload || {};
+      let attributes = {
+        email: idPayload.email || accessPayload.username || '',
+        sub: idPayload.sub || accessPayload.sub || currentUser?.userId || '',
+        username: currentUser?.username || idPayload['cognito:username'] || '',
+      };
+
+      let profileData = null;
+      try {
+        profileData = await fetchUserProfile();
+        if (profileData?.user_name) {
+          attributes = { ...attributes, name: profileData.user_name };
+        }
+      } catch (profileErr) {
+        console.warn('Unable to fetch profile from API:', profileErr);
+      }
+
+      setProfile(profileData);
+
+      // Prefer DynamoDB profile name, then Cognito name, then keep existing displayName before falling back
+      const nextDisplayName =
+        profileData?.user_name ||
+        attributes?.name ||
+        cachedName ||
+        attributes?.email ||
+        currentUser?.username;
+      if (profileData?.user_name || attributes?.name || cachedName) {
+        persistDisplayName(profileData?.user_name || attributes?.name || cachedName);
+      }
+      setUser({ ...currentUser, attributes, profile: profileData, displayName: nextDisplayName });
     } catch (err) {
       setUser(null);
     } finally {
@@ -235,13 +283,39 @@ export const AuthProvider = ({ children }) => {
   const updateName = async (newName) => {
     try {
       setError(null);
-      await updateUserAttribute({
-        userAttribute: {
-          attributeKey: 'name',
-          value: newName,
+      const token = await getIdToken();
+      if (!token) throw new Error('Không tìm thấy phiên đăng nhập. Vui lòng đăng nhập lại.');
+      if (!process.env.NEXT_PUBLIC_API_URL) throw new Error('API endpoint chưa được cấu hình.');
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/user/profile`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
         },
+        body: JSON.stringify({ user_name: newName }),
       });
-      // Refresh user data
+
+      if (!response.ok) {
+        const message = await response.text().catch(() => '');
+        throw new Error(message || 'Không thể cập nhật tên. Vui lòng thử lại.');
+      }
+
+      // Update local state immediately
+      setProfile((prev) => ({ ...(prev || {}), user_name: newName }));
+      persistDisplayName(newName);
+      setUser((prev) => {
+        if (!prev) return prev;
+        const updatedAttributes = { ...(prev.attributes || {}), name: newName };
+        const updatedProfile = { ...(prev.profile || {}), user_name: newName };
+        const displayName =
+          newName ||
+          prev.displayName ||
+          updatedAttributes.email ||
+          prev.username;
+        return { ...prev, attributes: updatedAttributes, profile: updatedProfile, displayName };
+      });
+
       await checkUser();
       return true;
     } catch (err) {
@@ -249,6 +323,26 @@ export const AuthProvider = ({ children }) => {
       setError(err.message);
       throw err;
     }
+  };
+
+  // Lấy profile (tên hiển thị lưu trong DynamoDB)
+  const fetchUserProfile = async () => {
+    const token = await getIdToken();
+    if (!token) throw new Error('Chưa đăng nhập');
+    if (!process.env.NEXT_PUBLIC_API_URL) throw new Error('API endpoint chưa được cấu hình.');
+
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/user/profile`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      const message = await res.text().catch(() => '');
+      throw new Error(message || `Lỗi ${res.status}`);
+    }
+    const profileData = await res.json();
+    if (profileData?.user_name) {
+      persistDisplayName(profileData.user_name);
+    }
+    return profileData;
   };
 
   // Lấy token
@@ -265,7 +359,7 @@ export const AuthProvider = ({ children }) => {
   // Lấy ID token (dùng cho API authorization)
   const getIdToken = async () => {
     try {
-      const session = await fetchAuthSession();
+      const session = await fetchAuthSession({ forceRefresh: true });
       return session.tokens?.idToken?.toString();
     } catch (err) {
       console.error('Get ID token error:', err);
@@ -275,6 +369,8 @@ export const AuthProvider = ({ children }) => {
 
   const value = {
     user,
+    profile,
+    displayName: displayName || user?.displayName || profile?.user_name || user?.attributes?.name || user?.attributes?.email || user?.username,
     loading,
     error,
     signUpUser,
@@ -289,6 +385,7 @@ export const AuthProvider = ({ children }) => {
     updateEmail,
     verifyEmailUpdate,
     updateName,
+    fetchUserProfile,
     getAccessToken,
     getIdToken,
     checkUser,
