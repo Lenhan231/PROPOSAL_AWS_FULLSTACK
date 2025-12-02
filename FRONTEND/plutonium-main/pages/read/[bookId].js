@@ -394,9 +394,6 @@ export default function ReadBookPage() {
                     {bookData?.uploadDate && (
                       <span>📅 {new Date(bookData.uploadDate).toLocaleDateString('vi-VN')}</span>
                     )}
-                    {bookData?.pages && (
-                      <span>📄 {bookData.pages} trang</span>
-                    )}
                   </div>
                 </div>
               </div>

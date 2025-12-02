@@ -74,15 +74,7 @@ export default function Home() {
             </div>
 
             {/* Stats */}
-            <div className="grid max-w-3xl grid-cols-3 gap-8 mx-auto mt-16">
-              <div className="text-center">
-                <div className="text-3xl font-bold text-gray-900 dark:text-white md:text-4xl">1000+</div>
-                <div className="mt-1 text-sm text-gray-600 dark:text-gray-400">Tài liệu</div>
-              </div>
-              <div className="text-center">
-                <div className="text-3xl font-bold text-gray-900 dark:text-white md:text-4xl">500+</div>
-                <div className="mt-1 text-sm text-gray-600 dark:text-gray-400">Người dùng</div>
-              </div>
+            <div className="grid max-w-3xl grid-cols-1 gap-8 mx-auto mt-16">
               <div className="text-center">
                 <div className="text-3xl font-bold text-gray-900 dark:text-white md:text-4xl">100%</div>
                 <div className="mt-1 text-sm text-gray-600 dark:text-gray-400">Miễn phí</div>
