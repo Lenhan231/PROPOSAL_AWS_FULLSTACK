@@ -189,6 +189,48 @@ class ApiStack(Stack):
         if books_table:
             books_table.grant_read_data(search_books_fn)
 
+        # admin_preview Lambda
+        admin_preview_env = {
+            "BOOKS_TABLE_NAME": books_table.table_name if books_table else "OnlineLibrary",
+            "CLOUDFRONT_DOMAIN": cloudfront_domain,
+        }
+        
+        # Add CloudFront credentials if provided
+        if cloudfront_key_pair_id:
+            admin_preview_env["CLOUDFRONT_KEY_PAIR_ID"] = cloudfront_key_pair_id
+        if cloudfront_private_key:
+            # Encode private key as base64 for environment variable
+            import base64
+            admin_preview_env["CLOUDFRONT_PRIVATE_KEY"] = base64.b64encode(
+                cloudfront_private_key.encode()
+            ).decode()
+
+        admin_preview_fn = _lambda.Function(
+            self,
+            "AdminPreviewFn",
+            runtime=_lambda.Runtime.PYTHON_3_12,
+            handler="admin_preview_url.handler",
+            code=_lambda.Code.from_asset(
+                "./lambda",
+                exclude=["**/__pycache__", "*.pyc", ".pytest_cache", "tests"],
+            ),
+            timeout=Duration.seconds(30),
+            memory_size=256,
+            environment=admin_preview_env,
+        )
+        lambdas["adminPreview"] = admin_preview_fn
+
+        # Grant permissions
+        if books_table:
+            books_table.grant_read_data(admin_preview_fn)
+        
+        # Grant access to parameters
+        cloudfront_domain_param.grant_read(admin_preview_fn)
+        
+        # Grant access to secrets if provided
+        if cloudfront_secret:
+            cloudfront_secret.grant_read(admin_preview_fn)
+
         # getMyUploads Lambda
         get_my_uploads_fn = _lambda.Function(
             self,
@@ -364,6 +406,7 @@ class ApiStack(Stack):
             ("/admin/books/pending", apigw.HttpMethod.GET, list_pending_books_fn),
             ("/admin/books/{bookId}/approve", apigw.HttpMethod.POST, approve_book_fn),
             ("/admin/books/{bookId}/reject", apigw.HttpMethod.POST, reject_book_fn),
+            ("/admin/books/{bookId}/admin-preview", apigw.HttpMethod.GET, admin_preview_fn),
             ("/user/profile", apigw.HttpMethod.PUT, update_user_profile_fn),
             ("/user/profile", apigw.HttpMethod.GET, get_user_profile_fn),
         ]
