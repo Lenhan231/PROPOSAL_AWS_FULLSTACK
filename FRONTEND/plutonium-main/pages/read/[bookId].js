@@ -16,14 +16,22 @@ const ReactReader = dynamic(() => import('react-reader').then(mod => mod.ReactRe
 
 export default function ReadBookPage() {
   const router = useRouter();
-  const { bookId } = router.query;
+  const { bookId, title, author, description, pages } = router.query;
   const normalizedBookId = Array.isArray(bookId) ? bookId[0] : bookId;
   const { user, loading: authLoading } = useAuth();
   const [contentUrl, setContentUrl] = useState(""); // Changed from pdfUrl to contentUrl
   const [downloadUrl, setDownloadUrl] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [bookData, setBookData] = useState(null);
+  const [bookData, setBookData] = useState(
+    // Use query params if available
+    title && author ? {
+      title,
+      author,
+      description: description || "",
+      pages: pages || "N/A"
+    } : null
+  );
   const [fileType, setFileType] = useState(null); // 'pdf' or 'epub'
   const [isDownloading, setIsDownloading] = useState(false);
   const [isAdmin, setIsAdmin] = useState(null); // null = checking, false = not admin, true = admin
@@ -148,6 +156,7 @@ export default function ReadBookPage() {
       
       const signedUrl = result.url || result.readUrl;
       
+      console.log('📝 Full API Response:', result);
       console.log('📝 Received URL:', signedUrl ? 'Yes' : 'No');
       console.log('🌐 Browser:', navigator.userAgent);
       console.log('🔗 URL starts with:', signedUrl ? signedUrl.substring(0, 50) + '...' : 'N/A');
@@ -194,14 +203,22 @@ export default function ReadBookPage() {
           }
         }
         
-        setBookData({
-          title: result.title || "Đọc sách",
-          author: result.author || "Không rõ",
-          description: result.description || "",
-          uploadDate: result.uploadDate || "",
-          pages: result.pages || "N/A"
-        });
-        console.log('✅ Book data set successfully');
+        // Only update book data if not already set from query params
+        if (!bookData || !bookData.title) {
+          setBookData({
+            title: result.title || result.bookTitle || result.name || "Unknown Title",
+            author: result.author || result.bookAuthor || result.uploader || result.uploaderName || "Unknown Author",
+            description: result.description || result.bookDescription || "",
+            uploadDate: result.uploadDate || result.createdAt || result.uploadedAt || "",
+            pages: result.pages || result.pageCount || "N/A"
+          });
+          console.log('✅ Book data set from API:', {
+            title: result.title || result.bookTitle || result.name,
+            author: result.author || result.bookAuthor || result.uploader
+          });
+        } else {
+          console.log('✅ Using book data from query params:', bookData);
+        }
         
         // Add direct link option for browsers that don't support iframe
         console.log('📖 If viewer doesn\'t load, open this URL directly:', signedUrl);

@@ -298,7 +298,15 @@ function BookListItem({ book, index, onError }) {
       onError("⚠️ Đây là dữ liệu mẫu. Chức năng đọc sách sẽ khả dụng khi backend được triển khai.", "warning");
       return;
     }
-    router.push(`/read/${book.bookId}`);
+    router.push({
+      pathname: `/read/${book.bookId}`,
+      query: {
+        title: book.title,
+        author: book.author,
+        description: book.description,
+        pages: book.pages
+      }
+    });
   };
 
   // Get file type icon
@@ -421,7 +429,15 @@ function BookGridCard({ book, index, onError }) {
       onError("⚠️ Đây là dữ liệu mẫu. Chức năng đọc sách sẽ khả dụng khi backend được triển khai.", "warning");
       return;
     }
-    router.push(`/read/${book.bookId}`);
+    router.push({
+      pathname: `/read/${book.bookId}`,
+      query: {
+        title: book.title,
+        author: book.author,
+        description: book.description,
+        pages: book.pages
+      }
+    });
   };
 
   const getFileIcon = () => {
