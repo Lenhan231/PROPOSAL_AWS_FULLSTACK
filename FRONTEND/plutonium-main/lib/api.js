@@ -154,6 +154,16 @@ export const api = {
   },
 
   /**
+   * Get preview URL for pending book (Admin only)
+   * @param {string} bookId
+   * @param {Object} params - Optional query parameters (e.g., { responseContentDisposition: 'inline' })
+   */
+  getAdminPreviewUrl: async (bookId, params = {}) => {
+    const response = await apiClient.get(API_ENDPOINTS.ADMIN_PREVIEW_URL(bookId), { params });
+    return response.data;
+  },
+
+  /**
    * Approve a book (Admin only)
    * @param {string} bookId
    */

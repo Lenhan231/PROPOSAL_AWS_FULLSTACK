@@ -2,33 +2,85 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/router";
 import Head from "next/head";
 import { api } from "../../lib/api";
+import { useAuth } from "../../src/contexts/AuthContext";
+import { fetchAuthSession } from 'aws-amplify/auth';
 
 export default function ReadBookPage() {
   const router = useRouter();
   const { bookId } = router.query;
+  const { user } = useAuth();
   const [pdfUrl, setPdfUrl] = useState("");
   const [downloadUrl, setDownloadUrl] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [bookData, setBookData] = useState(null);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const iframeRef = useRef(null);
+
+  useEffect(() => {
+    const checkAdmin = async () => {
+      if (!user) {
+        setIsAdmin(false);
+        return;
+      }
+      
+      try {
+        const session = await fetchAuthSession();
+        const accessToken = session.tokens?.accessToken;
+        const idToken = session.tokens?.idToken;
+        
+        const tokenGroups = 
+          accessToken?.payload?.['cognito:groups'] ||
+          idToken?.payload?.['cognito:groups'];
+        
+        const adminEmails = ['nhanle221199@gmail.com'];
+        
+        const isAdminUser = 
+          tokenGroups?.includes('Admins') || 
+          adminEmails.includes(user?.attributes?.email || user?.username || '');
+        
+        setIsAdmin(isAdminUser);
+      } catch (error) {
+        console.error('Error checking admin:', error);
+        setIsAdmin(false);
+      }
+    };
+
+    checkAdmin();
+  }, [user]);
 
   useEffect(() => {
     if (bookId) {
       loadBookData();
     }
-  }, [bookId]);
+  }, [bookId, isAdmin]);
 
   const loadBookData = async () => {
     try {
       setLoading(true);
       setError("");
       
-      // Get read URL for preview
-      const result = await api.getReadUrl(bookId, { 
-        responseContentDisposition: 'inline' 
-      });
+      // Try admin preview first if user is admin, fallback to regular read URL
+      let result;
+      if (isAdmin) {
+        try {
+          result = await api.getAdminPreviewUrl(bookId, { 
+            responseContentDisposition: 'inline' 
+          });
+        } catch (adminErr) {
+          console.log('Admin preview failed, trying regular read URL:', adminErr);
+          // Fallback to regular read URL if admin preview fails
+          result = await api.getReadUrl(bookId, { 
+            responseContentDisposition: 'inline' 
+          });
+        }
+      } else {
+        // Regular user - use standard read URL
+        result = await api.getReadUrl(bookId, { 
+          responseContentDisposition: 'inline' 
+        });
+      }
       
       const signedUrl = result.url || result.readUrl;
       
@@ -64,10 +116,24 @@ export default function ReadBookPage() {
     try {
       setIsDownloading(true);
       
-      // Get download URL
-      const result = await api.getReadUrl(bookId, { 
-        responseContentDisposition: 'attachment' 
-      });
+      // Get download URL - use admin preview if admin
+      let result;
+      if (isAdmin) {
+        try {
+          result = await api.getAdminPreviewUrl(bookId, { 
+            responseContentDisposition: 'attachment' 
+          });
+        } catch (adminErr) {
+          console.log('Admin download failed, trying regular read URL:', adminErr);
+          result = await api.getReadUrl(bookId, { 
+            responseContentDisposition: 'attachment' 
+          });
+        }
+      } else {
+        result = await api.getReadUrl(bookId, { 
+          responseContentDisposition: 'attachment' 
+        });
+      }
       
       const downloadUrl = result.url || result.readUrl;
       
