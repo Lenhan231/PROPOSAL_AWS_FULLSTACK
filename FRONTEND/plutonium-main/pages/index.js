@@ -33,7 +33,6 @@ export default function Home() {
           <div className="w-full mx-auto text-center">
             {/* Badge */}
             <div className="inline-flex items-center px-4 py-2 mb-6 text-sm font-medium text-blue-700 bg-blue-100 rounded-full dark:bg-blue-900/30 dark:text-blue-300">
-              <span className="mr-2">🎉</span>
               Nền tảng chia sẻ tài liệu miễn phí
             </div>
 
@@ -58,17 +57,12 @@ export default function Home() {
                 href="/books" 
                 className="group relative inline-flex items-center px-8 py-4 text-base font-semibold text-white transition-all duration-300 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl hover:shadow-xl hover:shadow-blue-500/50 hover:scale-105"
               >
-                <span className="mr-2">📚</span>
                 Khám phá ngay
-                <svg className="w-5 h-5 ml-2 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                </svg>
               </Link>
               <Link 
                 href="/upload" 
                 className="inline-flex items-center px-8 py-4 text-base font-semibold text-gray-900 transition-all duration-300 bg-white border-2 border-gray-200 rounded-xl hover:border-blue-600 hover:shadow-lg dark:bg-gray-800 dark:text-white dark:border-gray-700 dark:hover:border-blue-500"
               >
-                <span className="mr-2">⬆️</span>
                 Tải lên tài liệu
               </Link>
             </div>
@@ -183,9 +177,6 @@ export default function Home() {
                   className="inline-flex items-center px-8 py-4 text-lg font-semibold text-blue-600 transition-all duration-300 bg-white rounded-xl hover:shadow-2xl hover:scale-105"
                 >
                   Đăng ký miễn phí
-                  <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                  </svg>
                 </Link>
                 <Link 
                   href="/books" 
@@ -204,16 +195,13 @@ export default function Home() {
   );
 }
 
-function FeatureCard({ icon, title, description, gradient }) {
+function FeatureCard({ title, description, gradient }) {
   return (
     <div className="relative p-8 transition-all duration-300 bg-white border border-gray-200 group rounded-2xl dark:bg-gray-800 dark:border-gray-700 hover:shadow-2xl hover:-translate-y-2">
       {/* Gradient background on hover */}
       <div className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-0 group-hover:opacity-5 rounded-2xl transition-opacity duration-300`}></div>
       
       <div className="relative">
-        <div className={`inline-flex items-center justify-center w-16 h-16 mb-6 text-3xl bg-gradient-to-br ${gradient} rounded-2xl`}>
-          <span className="filter drop-shadow-lg">{icon}</span>
-        </div>
         <h3 className="mb-3 text-xl font-bold text-gray-900 dark:text-white">
           {title}
         </h3>
@@ -225,7 +213,7 @@ function FeatureCard({ icon, title, description, gradient }) {
   );
 }
 
-function StepCard({ step, icon, title, description }) {
+function StepCard({ step, title, description }) {
   return (
     <div className="relative p-8 text-center transition-all duration-300 bg-white border border-gray-200 group rounded-2xl dark:bg-gray-800 dark:border-gray-700 hover:shadow-xl hover:-translate-y-1">
       {/* Step number */}
@@ -233,7 +221,6 @@ function StepCard({ step, icon, title, description }) {
         {step}
       </div>
       
-      <div className="mb-6 text-5xl">{icon}</div>
       <h3 className="mb-3 text-xl font-bold text-gray-900 dark:text-white">
         {title}
       </h3>

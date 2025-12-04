@@ -163,19 +163,16 @@ export default function AdminPendingPage() {
               <StatCard
                 title="Chờ duyệt"
                 value={books.length}
-                icon="⏳"
                 color="yellow"
               />
               <StatCard
                 title="Tổng sách (đã duyệt)"
                 value={totalBooks}
-                icon="📚"
                 color="green"
               />
               <StatCard
                 title="Cần xử lý"
                 value={books.length > 0 ? "Có việc" : "Trống"}
-                icon={books.length > 0 ? "🔔" : "✅"}
                 color={books.length > 0 ? "red" : "green"}
               />
             </div>
@@ -218,7 +215,7 @@ export default function AdminPendingPage() {
           {/* Info Box */}
           <div className="p-6 mt-8 bg-blue-50 border border-blue-200 rounded-xl dark:bg-gray-800 dark:border-blue-900">
             <h3 className="mb-2 font-semibold text-blue-900 dark:text-blue-300">
-              💡 Lưu ý cho Admin:
+              Lưu ý cho Admin:
             </h3>
             <ul className="space-y-1 text-sm text-blue-800 dark:text-blue-200 list-disc list-inside">
               <li>Kiểm tra kỹ nội dung trước khi duyệt</li>
@@ -275,7 +272,7 @@ export default function AdminPendingPage() {
   );
 }
 
-function StatCard({ title, value, icon, color }) {
+function StatCard({ title, value, color }) {
   const colorClasses = {
     yellow: "bg-yellow-50 border-yellow-200 dark:bg-yellow-900/20 dark:border-yellow-800",
     green: "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800",
@@ -291,7 +288,6 @@ function StatCard({ title, value, icon, color }) {
             {value}
           </p>
         </div>
-        <div className="text-4xl">{icon}</div>
       </div>
     </div>
   );
@@ -351,22 +347,22 @@ function PendingBookCard({ book, onApprove, onReject }) {
           </h3>
           <div className="grid gap-2 text-sm md:grid-cols-2">
             <p className="text-gray-600 dark:text-gray-400">
-              <span className="font-medium">📖 Tác giả:</span> {book.author || "Không rõ"}
+              <span className="font-medium">Tác giả:</span> {book.author || "Không rõ"}
             </p>
             <p className="text-gray-600 dark:text-gray-400">
-              <span className="font-medium">👤 Người tải:</span> {getUploaderDisplay()}
+              <span className="font-medium">Người tải:</span> {getUploaderDisplay()}
             </p>
             <p className="text-gray-600 dark:text-gray-400">
-              <span className="font-medium">📦 Kích thước:</span>{" "}
+              <span className="font-medium">Kích thước:</span>{" "}
               {formatFileSize(book.fileSize)}
             </p>
             <p className="text-gray-600 dark:text-gray-400">
-              <span className="font-medium">📅 Tải lên:</span> {formatDate(book.uploadedAt || book.createdAt)}
+              <span className="font-medium">Tải lên:</span> {formatDate(book.uploadedAt || book.createdAt)}
             </p>
           </div>
           {book.description && (
             <p className="mt-3 text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
-              <span className="font-medium">📝 Mô tả:</span> {book.description}
+              <span className="font-medium">Mô tả:</span> {book.description}
             </p>
           )}
         </div>
@@ -377,19 +373,19 @@ function PendingBookCard({ book, onApprove, onReject }) {
             onClick={handlePreview}
             className="flex items-center gap-2 px-6 py-3 font-medium text-blue-600 transition-colors bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-900/40"
           >
-            👁️ Xem trước
+            Xem trước
           </button>
           <button
             onClick={() => onApprove(book.bookId, book.title)}
             className="flex items-center gap-2 px-6 py-3 font-medium text-white transition-colors bg-green-600 rounded-lg hover:bg-green-700"
           >
-            ✅ Duyệt
+            Duyệt
           </button>
           <button
             onClick={() => onReject(book.bookId, book.title)}
             className="flex items-center gap-2 px-6 py-3 font-medium text-white transition-colors bg-red-600 rounded-lg hover:bg-red-700"
           >
-            ❌ Từ chối
+            Từ chối
           </button>
         </div>
       </div>
