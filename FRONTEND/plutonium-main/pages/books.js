@@ -28,7 +28,7 @@ export default function BooksPage() {
       // If no limit is specified, use a high limit to get all books
       const searchParams = {
         ...params,
-        limit: params.limit || 1000
+        limit: params.limit || 100
       };
       const result = await api.searchBooks(searchParams);
       
@@ -96,13 +96,13 @@ export default function BooksPage() {
     e.preventDefault();
     
     if (!searchQuery.trim()) {
-      loadBooks({ limit: 1000 });
+      loadBooks({ limit: 100 });
       return;
     }
 
     const params = {
       q: searchQuery.trim(),
-      limit: 1000,
+      limit: 100,
     };
 
     await loadBooks(params);

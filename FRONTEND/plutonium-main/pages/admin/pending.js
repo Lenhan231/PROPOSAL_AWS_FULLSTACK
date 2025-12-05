@@ -56,7 +56,7 @@ export default function AdminPendingPage() {
   const loadTotalBooks = async () => {
     try {
       // Get all approved books from search
-      const result = await api.searchBooks({ limit: 1000 });
+      const result = await api.searchBooks({ limit: 100 });
       setTotalBooks(result.books?.length || 0);
     } catch (err) {
       console.error("Failed to load total books:", err);
