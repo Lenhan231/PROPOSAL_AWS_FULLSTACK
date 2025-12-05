@@ -25,10 +25,15 @@ export default function BooksPage() {
     try {
       setLoading(true);
       setError("");
-      const result = await api.searchBooks(params);
+      // If no limit is specified, use a high limit to get all books
+      const searchParams = {
+        ...params,
+        limit: params.limit || 1000
+      };
+      const result = await api.searchBooks(searchParams);
       
       setBooks(result.books || []);
-      setMeta({ total: result.books?.length || 0, limit: params.limit || 20 });
+      setMeta({ total: result.books?.length || 0, limit: searchParams.limit });
     } catch (err) {
       console.error("Failed to load books:", err);
       
@@ -91,13 +96,13 @@ export default function BooksPage() {
     e.preventDefault();
     
     if (!searchQuery.trim()) {
-      loadBooks({ limit: 20 });
+      loadBooks({ limit: 1000 });
       return;
     }
 
     const params = {
       q: searchQuery.trim(),
-      limit: 20,
+      limit: 1000,
     };
 
     await loadBooks(params);
