@@ -1,4 +1,68 @@
 .docs
 .kiro
+.venv
+.cdk.staging
 
+
+cdk.out
 learning_note
+logs
+
+
+BACKEND/node_modules
+BACKEND/.venv
+
+
+# Python cache
+*.pyc
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual env
+venv/
+ENV/
+env/
+.venv
+
+# CDK
+cdk.out/
+
+# Node
+node_modules/
+package-lock.json
+
+BACKEND/__pycache__/
+BACKEND/lambda/**/__pycache__/
+BACKEND/tests/**/__pycache__/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# CDK Context & Staging files
+cdk.context.json
