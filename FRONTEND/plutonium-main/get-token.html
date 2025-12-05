@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Get ID Token - Dev Tool</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      background: white;
+      border-radius: 12px;
+      padding: 30px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #2563eb;
+      margin-bottom: 10px;
+    }
+    .subtitle {
+      color: #6b7280;
+      margin-bottom: 30px;
+    }
+    button {
+      background: #2563eb;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    button:hover {
+      background: #1d4ed8;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+    }
+    button:disabled {
+      background: #9ca3af;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .token-container {
+      margin-top: 30px;
+      padding: 20px;
+      background: #f9fafb;
+      border-radius: 8px;
+      border: 2px solid #e5e7eb;
+    }
+    .token-text {
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      word-break: break-all;
+      background: white;
+      padding: 15px;
+      border-radius: 6px;
+      border: 1px solid #d1d5db;
+      max-height: 200px;
+      overflow-y: auto;
+      margin: 15px 0;
+    }
+    .copy-btn {
+      background: #10b981;
+      padding: 10px 20px;
+      font-size: 14px;
+    }
+    .copy-btn:hover {
+      background: #059669;
+    }
+    .status {
+      padding: 12px;
+      border-radius: 6px;
+      margin-top: 15px;
+    }
+    .status.error {
+      background: #fee2e2;
+      color: #991b1b;
+      border: 1px solid #fecaca;
+    }
+    .status.success {
+      background: #d1fae5;
+      color: #065f46;
+      border: 1px solid #a7f3d0;
+    }
+    .info {
+      background: #dbeafe;
+      border: 1px solid #93c5fd;
+      padding: 15px;
+      border-radius: 8px;
+      margin-top: 20px;
+      color: #1e40af;
+      font-size: 14px;
+    }
+    .info code {
+      background: white;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+    }
+    .curl-example {
+      background: #1f2937;
+      color: #f9fafb;
+      padding: 20px;
+      border-radius: 8px;
+      margin-top: 20px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      overflow-x: auto;
+    }
+    .curl-example pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔑 Get ID Token</h1>
+    <p class="subtitle">Development tool để lấy ID token từ Cognito cho API testing</p>
+
+    <button id="getTokenBtn" onclick="getToken()">Lấy ID Token</button>
+
+    <div id="tokenContainer" class="token-container" style="display: none;">
+      <h3 style="margin-top: 0;">ID Token:</h3>
+      <div id="tokenText" class="token-text"></div>
+      <button class="copy-btn" onclick="copyToken()">📋 Copy Token</button>
+      <div id="status"></div>
+    </div>
+
+    <div class="info">
+      <strong>📌 Hướng dẫn:</strong><br>
+      1. Đảm bảo bạn đã đăng nhập vào <code>http://localhost:3000</code><br>
+      2. Mở file này trong trình duyệt (cùng domain với app)<br>
+      3. Click nút "Lấy ID Token" để lấy token từ localStorage<br>
+      4. Copy token và dùng cho curl hoặc Postman
+    </div>
+
+    <div id="curlExample" style="display: none;"></div>
+  </div>
+
+  <script>
+    async function getToken() {
+      const btn = document.getElementById('getTokenBtn');
+      const container = document.getElementById('tokenContainer');
+      const tokenText = document.getElementById('tokenText');
+      const statusDiv = document.getElementById('status');
+      const curlExample = document.getElementById('curlExample');
+      
+      btn.disabled = true;
+      btn.textContent = 'Đang lấy token...';
+      statusDiv.innerHTML = '';
+
+      try {
+        // Try to get from localStorage first (Amplify v6 format)
+        const authKeys = Object.keys(localStorage).filter(key => 
+          key.includes('CognitoIdentityServiceProvider') || 
+          key.includes('amplify')
+        );
+
+        console.log('Auth keys found:', authKeys);
+
+        let idToken = null;
+
+        // Method 1: Check for idToken in localStorage
+        for (const key of authKeys) {
+          if (key.includes('.idToken')) {
+            idToken = localStorage.getItem(key);
+            console.log('Found idToken via localStorage:', key);
+            break;
+          }
+        }
+
+        // Method 2: Try to parse LastAuthUser and construct key
+        if (!idToken) {
+          const userPoolId = 'ap-southeast-1_B4IeaxOqB'; // From your config
+          const clientId = '5sgdpuv1cu04g2hps9rbs2bjj0';
+          
+          const lastAuthUserKey = `CognitoIdentityServiceProvider.${clientId}.LastAuthUser`;
+          const lastAuthUser = localStorage.getItem(lastAuthUserKey);
+          
+          if (lastAuthUser) {
+            const idTokenKey = `CognitoIdentityServiceProvider.${clientId}.${lastAuthUser}.idToken`;
+            idToken = localStorage.getItem(idTokenKey);
+            console.log('Found idToken via LastAuthUser:', lastAuthUser);
+          }
+        }
+
+        if (!idToken) {
+          throw new Error('Không tìm thấy ID token. Bạn có đang đăng nhập không?');
+        }
+
+        // Display token
+        tokenText.textContent = idToken;
+        container.style.display = 'block';
+
+        // Parse JWT to show info
+        try {
+          const payload = JSON.parse(atob(idToken.split('.')[1]));
+          statusDiv.className = 'status success';
+          statusDiv.innerHTML = `
+            ✅ Token hợp lệ!<br>
+            <small>
+              👤 User: ${payload['cognito:username'] || payload.email}<br>
+              🔑 Groups: ${payload['cognito:groups']?.join(', ') || 'none'}<br>
+              ⏰ Expires: ${new Date(payload.exp * 1000).toLocaleString()}
+            </small>
+          `;
+
+          // Show curl example
+          curlExample.style.display = 'block';
+          curlExample.className = 'curl-example';
+          curlExample.innerHTML = `
+            <strong style="color: #60a5fa;">📡 Curl Example:</strong>
+            <pre>
+API="https://bw4xxyd2yl.execute-api.ap-southeast-1.amazonaws.com"
+JWT="${idToken}"
+
+curl -i -X POST "$API/books/upload-url" \\
+  -H "Authorization: Bearer $JWT" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "title": "Test Book",
+    "author": "Test Author",
+    "description": "Test description",
+    "fileName": "test.pdf",
+    "fileSize": 1234567
+  }'
+            </pre>
+          `;
+        } catch (e) {
+          console.error('Failed to parse token:', e);
+        }
+
+        btn.textContent = '🔄 Refresh Token';
+      } catch (error) {
+        console.error('Error getting token:', error);
+        statusDiv.className = 'status error';
+        statusDiv.textContent = '❌ ' + error.message;
+        container.style.display = 'block';
+        btn.textContent = 'Thử lại';
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function copyToken() {
+      const tokenText = document.getElementById('tokenText').textContent;
+      const statusDiv = document.getElementById('status');
+      
+      navigator.clipboard.writeText(tokenText)
+        .then(() => {
+          statusDiv.className = 'status success';
+          statusDiv.textContent = '✅ Đã copy vào clipboard!';
+          setTimeout(() => {
+            statusDiv.textContent = '';
+          }, 3000);
+        })
+        .catch(err => {
+          statusDiv.className = 'status error';
+          statusDiv.textContent = '❌ Copy failed: ' + err.message;
+        });
+    }
+
+    // Auto-run on load if there's a token
+    window.addEventListener('load', () => {
+      const authKeys = Object.keys(localStorage).filter(key => 
+        key.includes('CognitoIdentityServiceProvider')
+      );
+      if (authKeys.length > 0) {
+        console.log('Found auth keys, ready to get token');
+      }
+    });
+  </script>
+</body>
+</html>
